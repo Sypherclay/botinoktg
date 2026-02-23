@@ -1,91 +1,110 @@
 """
-НАПОМИНАНИЯ О НЕАКТИВНОСТИ
+НАПОМИНАНИЯ О НЕАКТИВНОСТИ - ИСПРАВЛЕННАЯ ВЕРСИЯ
 /notifyactive
 """
 from telegram.ext import CommandHandler
 from telegram.constants import ParseMode
+import traceback
 from database import get_reminder_settings, save_reminder_settings
 from permissions import is_admin
 
+print("✅ reminders.py загружен!")
+
 async def cmd_notifyactive(update, context):
     """Управление напоминаниями о неактивности"""
-    if not is_admin(update.effective_user.id):
-        await update.message.reply_text("❌ Доступ запрещен")
-        return
+    print("\n🔥 ВЫПОЛНЕНИЕ /notifyactive")
     
-    settings = get_reminder_settings()
-    
-    if not context.args:
-        status = "✅ Вкл" if settings.get('enabled', True) else "❌ Выкл"
-        intervals = settings.get('intervals', {})
+    try:
+        if not is_admin(update.effective_user.id):
+            await update.message.reply_text("❌ Доступ запрещен")
+            return
         
-        text = (
-            f"🔔 <b>Напоминания о неактивности</b>\n\n"
-            f"<b>Статус:</b> {status}\n\n"
-            f"<b>Интервалы:</b>\n"
-            f"• 1 день: {'✅' if intervals.get('1_day', True) else '❌'}\n"
-            f"• 3 дня: {'✅' if intervals.get('3_days', True) else '❌'}\n"
-            f"• 7 дней: {'✅' if intervals.get('7_days', True) else '❌'}\n"
-            f"• 14 дней: {'✅' if intervals.get('14_days', True) else '❌'}\n\n"
-            f"<b>Команды:</b>\n"
-            f"• /notifyactive on - включить\n"
-            f"• /notifyactive off - выключить\n"
-            f"• /notifyactive reset - сбросить историю\n"
-            f"• /notifyactive 1day on/off - управление интервалами\n"
-            f"• /notifyactive 3days on/off\n"
-            f"• /notifyactive 7days on/off\n"
-            f"• /notifyactive 14days on/off"
-        )
-        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
-        return
-    
-    cmd = context.args[0].lower()
-    
-    if cmd == "on":
-        settings['enabled'] = True
-        save_reminder_settings(settings)
-        await update.message.reply_text("✅ Напоминания включены")
-    
-    elif cmd == "off":
-        settings['enabled'] = False
-        save_reminder_settings(settings)
-        await update.message.reply_text("✅ Напоминания выключены")
-    
-    elif cmd == "reset":
-        settings['sent_reminders'] = {}
-        save_reminder_settings(settings)
-        await update.message.reply_text("✅ История сброшена")
-    
-    elif cmd == "1day" and len(context.args) > 1:
-        val = context.args[1].lower()
-        settings['intervals']['1_day'] = val in ['on', 'true', '1']
-        save_reminder_settings(settings)
-        await update.message.reply_text(f"✅ 1 день {'включён' if settings['intervals']['1_day'] else 'выключен'}")
-    
-    elif cmd == "3days" and len(context.args) > 1:
-        val = context.args[1].lower()
-        settings['intervals']['3_days'] = val in ['on', 'true', '1']
-        save_reminder_settings(settings)
-        await update.message.reply_text(f"✅ 3 дня {'включены' if settings['intervals']['3_days'] else 'выключены'}")
-    
-    elif cmd == "7days" and len(context.args) > 1:
-        val = context.args[1].lower()
-        settings['intervals']['7_days'] = val in ['on', 'true', '1']
-        save_reminder_settings(settings)
-        await update.message.reply_text(f"✅ 7 дней {'включены' if settings['intervals']['7_days'] else 'выключены'}")
-    
-    elif cmd == "14days" and len(context.args) > 1:
-        val = context.args[1].lower()
-        settings['intervals']['14_days'] = val in ['on', 'true', '1']
-        save_reminder_settings(settings)
-        await update.message.reply_text(f"✅ 14 дней {'включены' if settings['intervals']['14_days'] else 'выключены'}")
-    
-    else:
-        await update.message.reply_text("❌ Неизвестная команда. /notifyactive для справки")
+        settings = get_reminder_settings()
+        
+        if not context.args:
+            status = "✅ Вкл" if settings.get('enabled', True) else "❌ Выкл"
+            intervals = settings.get('intervals', {})
+            
+            text = (
+                f"🔔 <b>Напоминания о неактивности</b>\n\n"
+                f"<b>Статус:</b> {status}\n\n"
+                f"<b>Интервалы:</b>\n"
+                f"• 1 день: {'✅' if intervals.get('1_day', True) else '❌'}\n"
+                f"• 3 дня: {'✅' if intervals.get('3_days', True) else '❌'}\n"
+                f"• 7 дней: {'✅' if intervals.get('7_days', True) else '❌'}\n"
+                f"• 14 дней: {'✅' if intervals.get('14_days', True) else '❌'}\n\n"
+                f"<b>Команды:</b>\n"
+                f"• /notifyactive on - включить\n"
+                f"• /notifyactive off - выключить\n"
+                f"• /notifyactive reset - сбросить историю\n"
+                f"• /notifyactive 1day on/off - управление интервалами\n"
+                f"• /notifyactive 3days on/off\n"
+                f"• /notifyactive 7days on/off\n"
+                f"• /notifyactive 14days on/off"
+            )
+            await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            return
+        
+        cmd = context.args[0].lower()
+        print(f"   команда: {cmd}")
+        
+        if cmd == "on":
+            settings['enabled'] = True
+            save_reminder_settings(settings)
+            await update.message.reply_text("✅ Напоминания включены")
+            print("✅ Напоминания включены")
+        
+        elif cmd == "off":
+            settings['enabled'] = False
+            save_reminder_settings(settings)
+            await update.message.reply_text("✅ Напоминания выключены")
+            print("✅ Напоминания выключены")
+        
+        elif cmd == "reset":
+            settings['sent_reminders'] = {}
+            save_reminder_settings(settings)
+            await update.message.reply_text("✅ История сброшена")
+            print("✅ История сброшена")
+        
+        elif cmd == "1day" and len(context.args) > 1:
+            val = context.args[1].lower()
+            settings['intervals']['1_day'] = val in ['on', 'true', '1']
+            save_reminder_settings(settings)
+            await update.message.reply_text(f"✅ 1 день {'включён' if settings['intervals']['1_day'] else 'выключен'}")
+            print(f"✅ 1 день: {settings['intervals']['1_day']}")
+        
+        elif cmd == "3days" and len(context.args) > 1:
+            val = context.args[1].lower()
+            settings['intervals']['3_days'] = val in ['on', 'true', '1']
+            save_reminder_settings(settings)
+            await update.message.reply_text(f"✅ 3 дня {'включены' if settings['intervals']['3_days'] else 'выключены'}")
+            print(f"✅ 3 дня: {settings['intervals']['3_days']}")
+        
+        elif cmd == "7days" and len(context.args) > 1:
+            val = context.args[1].lower()
+            settings['intervals']['7_days'] = val in ['on', 'true', '1']
+            save_reminder_settings(settings)
+            await update.message.reply_text(f"✅ 7 дней {'включены' if settings['intervals']['7_days'] else 'выключены'}")
+            print(f"✅ 7 дней: {settings['intervals']['7_days']}")
+        
+        elif cmd == "14days" and len(context.args) > 1:
+            val = context.args[1].lower()
+            settings['intervals']['14_days'] = val in ['on', 'true', '1']
+            save_reminder_settings(settings)
+            await update.message.reply_text(f"✅ 14 дней {'включены' if settings['intervals']['14_days'] else 'выключены'}")
+            print(f"✅ 14 дней: {settings['intervals']['14_days']}")
+        
+        else:
+            await update.message.reply_text("❌ Неизвестная команда. /notifyactive для справки")
+            
+    except Exception as e:
+        print(f"❌ Ошибка в cmd_notifyactive: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
-# ✅ ФУНКЦИЯ ДЛЯ jobs.py
+# Функция для jobs.py
 async def check_inactivity_reminders(context):
-    """Проверка неактивных пользователей (вызывается из jobs.py)"""
+    """Проверка неактивных пользователей"""
     try:
         print("🔍 Проверка неактивных пользователей...")
         settings = get_reminder_settings()
@@ -100,4 +119,6 @@ async def check_inactivity_reminders(context):
         print(f"❌ Ошибка в check_inactivity_reminders: {e}")
 
 def register(app):
+    print("📝 Регистрация команд reminders.py...")
     app.add_handler(CommandHandler("notifyactive", cmd_notifyactive))
+    print("✅ reminders.py зарегистрирован")
