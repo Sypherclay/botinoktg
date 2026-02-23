@@ -1,6 +1,6 @@
 """
 СИСТЕМА ОТПУСКОВ - ИСПРАВЛЕННАЯ ВЕРСИЯ
-!отпуск, !мой отпуск, !сброс
+!отпуск, !мой отпуск (только для себя), !сброс
 """
 from datetime import datetime, timedelta
 from telegram.ext import MessageHandler, filters
@@ -11,7 +11,6 @@ from database import (
     get_setting
 )
 from permissions import has_permission, is_admin, get_clickable_name
-from user_resolver import resolve_user
 from logger import log_user_action, log_admin_action
 
 print("✅ vacation.py загружен!")
@@ -103,38 +102,16 @@ async def cmd_vacation(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_my_vacation(update, context):
-    """!мой отпуск - показать свой отпуск или отпуск другого пользователя"""
+    """!мой отпуск - показать свой отпуск (ТОЛЬКО ДЛЯ СЕБЯ)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !мой отпуск")
     
     try:
         user_id = update.effective_user.id
-        chat_id = str(update.effective_chat.id)
         print(f"   user_id: {user_id}")
         
-        # Определяем, для кого показываем отпуск
+        # Игнорируем любые аргументы - показываем только себя
         target_id = user_id
         target_user = update.effective_user
-        
-        # Проверяем, есть ли аргументы (для просмотра чужого отпуска)
-        message_text = update.message.text
-        parts = message_text.split()
-        
-        # Если есть аргументы или это ответ на сообщение
-        if len(parts) > 1 or update.message.reply_to_message:
-            print("   Поиск целевого пользователя...")
-            
-            # Сохраняем аргументы для resolve_user
-            if len(parts) > 1:
-                context.args = parts[1:]
-            
-            user = await resolve_user(update, context, required=True, allow_self=False)
-            if user:
-                target_id = user.id
-                target_user = user
-                print(f"   target найден: {target_id} - {target_user.first_name}")
-            else:
-                # Если resolve_user вернул None и отправил сообщение, выходим
-                return
         
         # Получаем информацию об отпуске
         vacation = get_vacation(target_id)
@@ -221,6 +198,6 @@ async def cmd_reset_vacations(update, context):
 def register(app):
     print("📝 Регистрация команд vacation.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!отпуск\b'), cmd_vacation))
-    app.add_handler(MessageHandler(filters.Regex(r'^!мой отпуск\b'), cmd_my_vacation))
+    app.add_handler(MessageHandler(filters.Regex(r'^!мой отпуск\b'), cmd_my_vacation))  # Только для себя
     app.add_handler(MessageHandler(filters.Regex(r'^!сброс\b'), cmd_reset_vacations))
     print("✅ vacation.py зарегистрирован")

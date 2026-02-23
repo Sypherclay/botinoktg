@@ -149,7 +149,7 @@ async def cmd_clear_user(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_adduser(update, context):
-    """!adduser @username [кастомный ник] - добавить пользователя вручную"""
+    """!adduser ID [кастомный ник] - добавить пользователя вручную и установить ник"""
     print("\n🔥 ВЫПОЛНЕНИЕ !adduser")
     
     try:
@@ -167,7 +167,9 @@ async def cmd_adduser(update, context):
         
         if len(parts) < 2:
             await update.message.reply_text(
-                "!adduser @username\n!adduser ID\n!adduser @username Кастомный Ник",
+                "❌ Используйте: !adduser ID [кастомный ник]\n"
+                "Пример: !adduser 123456789\n"
+                "Пример с ником: !adduser 123456789 Иван Иванов",
                 parse_mode=ParseMode.HTML
             )
             return
@@ -175,6 +177,7 @@ async def cmd_adduser(update, context):
         # Проверяем чат
         if chat_id not in get_all_chats():
             add_chat_to_db(chat_id)
+            print(f"   Чат {chat_id} добавлен в отслеживаемые")
         
         target = parts[1]
         custom = parts[2] if len(parts) > 2 else None
@@ -182,84 +185,100 @@ async def cmd_adduser(update, context):
         print(f"   target: {target}")
         print(f"   custom: {custom}")
         
-        target_user = None
-        
-        # Поиск по ID
+        # Проверяем, что это ID (число)
         try:
             target_id = int(target)
-            try:
-                member = await context.bot.get_chat_member(update.effective_chat.id, target_id)
-                if member and member.user:
-                    target_user = member.user
-            except:
-                target_user = User(id=target_id, first_name=custom or f"User {target_id}", is_bot=False)
         except ValueError:
-            # Поиск по @username
-            if target.startswith('@'):
-                clean = target[1:]
-                try:
-                    chat = await context.bot.get_chat(f"@{clean}")
-                    if chat and not chat.is_bot:
-                        target_user = chat
-                except:
-                    target_user = User(id=0, first_name=custom or clean, is_bot=False, username=clean)
-        
-        if not target_user:
-            await update.message.reply_text("❌ Пользователь не найден")
+            await update.message.reply_text(
+                "❌ ID должен быть числом\n"
+                "Пример: !adduser 123456789",
+                parse_mode=ParseMode.HTML
+            )
             return
         
-        # Для пользователя с username без ID
-        if target_user.id == 0 and target_user.username:
-            try:
-                admins = await context.bot.get_chat_administrators(update.effective_chat.id)
-                for a in admins:
-                    if a.user.username and a.user.username.lower() == target_user.username.lower():
-                        target_user = a.user
-                        break
-            except:
-                pass
+        # Пробуем получить информацию о пользователе через API
+        target_user = None
+        try:
+            chat_member = await context.bot.get_chat_member(update.effective_chat.id, target_id)
+            if chat_member and chat_member.user:
+                target_user = chat_member.user
+                print(f"   Найден через API: {target_user.first_name}")
+        except Exception as e:
+            print(f"   Не найден в чате, создаём минимального пользователя: {e}")
+            # Если пользователь не в чате, создаём минимальный объект
+            target_user = User(
+                id=target_id, 
+                first_name=custom or f"User {target_id}", 
+                is_bot=False,
+                username=None
+            )
         
-        if target_user.id == 0:
-            await update.message.reply_text(f"❌ Не удалось получить ID. Используйте ID")
+        if not target_user:
+            await update.message.reply_text("❌ Не удалось создать пользователя")
             return
         
         print(f"   target_id: {target_user.id}")
         
+        # Определяем имя для отображения
         display = custom or target_user.full_name or f"User {target_user.id}"
+        
+        # Проверяем, есть ли уже пользователь в БД
         exists = user_exists_in_chat(target_user.id, chat_id)
         
         if not exists:
-            get_or_create_user(target_user.id, chat_id, target_user.username or '', display)
+            # Создаём пользователя в БД
+            get_or_create_user(
+                target_user.id, 
+                chat_id, 
+                target_user.username or '', 
+                display
+            )
+            
+            # Добавляем в общую тему
             get_or_create_topic(chat_id, '0', 'Общая тема')
             add_user_to_topic(chat_id, '0', target_user.id, 0)
             
+            # Если указан кастомный ник - сохраняем его
             if custom:
                 set_user_custom_nick(target_user.id, custom)
+                print(f"   Установлен кастомный ник: {custom}")
             
-            clickable = get_clickable_name(target_user.id, display, target_user.username or '')
+            clickable = get_clickable_name(
+                target_user.id, 
+                display, 
+                target_user.username or ''
+            )
             
             log_admin_action(
                 admin_id, 
                 update.effective_user.full_name, 
                 "Ручное добавление", 
-                f"{target_user.id} (@{target_user.username})", 
+                f"{target_user.id}", 
                 f"Имя: {display}"
             )
             
-            response = f"✅ {clickable} добавлен!\n📝 Имя: {display}\n🆔 <code>{target_user.id}</code>"
+            response = f"✅ {clickable} добавлен в базу!\n"
+            response += f"📝 Имя: {display}\n"
+            response += f"🆔 ID: <code>{target_user.id}</code>\n"
+            
             if target_user.username:
-                response += f"\n👤 @{target_user.username}"
+                response += f"👤 Username: @{target_user.username}\n"
             if custom:
-                response += f"\n🏷️ Ник: {custom}"
+                response += f"🏷️ Кастомный ник: {custom}\n"
             
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
             print("✅ Пользователь добавлен")
+            
         else:
+            # Пользователь уже существует, обновляем ник если указан
+            response = f"ℹ️ Пользователь уже есть в базе\n"
+            
             if custom:
                 set_user_custom_nick(target_user.id, custom)
-                await update.message.reply_text(f"ℹ️ Пользователь уже есть. Ник обновлён на {custom}")
-            else:
-                await update.message.reply_text("ℹ️ Пользователь уже есть в базе")
+                response += f"🏷️ Кастомный ник обновлён на: {custom}"
+                print(f"   Ник обновлён на: {custom}")
+            
+            await update.message.reply_text(response, parse_mode=ParseMode.HTML)
                 
     except Exception as e:
         print(f"❌ Ошибка в cmd_adduser: {e}")
@@ -270,5 +289,5 @@ def register(app):
     print("📝 Регистрация команд user.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!ник\b'), cmd_nick))
     app.add_handler(MessageHandler(filters.Regex(r'^!очистить\b'), cmd_clear_user))
-    app.add_handler(CommandHandler("adduser", cmd_adduser))
+    app.add_handler(MessageHandler(filters.Regex(r'^!adduser\b'), cmd_adduser))  # Changed from CommandHandler to MessageHandler
     print("✅ user.py зарегистрирован")

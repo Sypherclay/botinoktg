@@ -1,13 +1,15 @@
 """
 КОМАНДЫ ВЫГОВОРОВ - ИСПРАВЛЕННАЯ ВЕРСИЯ
-!выговор, !лист, !снять выговор - с поддержкой @user и reply
+!выговор, !лист, !снять выговор, !мои выговоры
 """
 from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
+from datetime import datetime
 import traceback
 from database import (
     add_warning, get_all_users_with_warnings, get_warnings_count,
-    remove_last_warning, get_user_max_warnings, get_user_rank_db
+    remove_last_warning, get_user_max_warnings, get_user_rank_db,
+    get_user_warnings
 )
 from permissions import has_permission, get_clickable_name
 from user_resolver import resolve_user
@@ -56,7 +58,7 @@ async def cmd_warn(update, context):
         # Если есть причина в третьем аргументе
         if len(parts) > 2:
             reason = parts[2]
-        # Если есть причина и это не аргумент для resolve_user (например, ответ на сообщение)
+        # Если есть причина и это не аргумент для resolve_user
         elif len(parts) > 1 and update.message.reply_to_message and not parts[1].startswith(('@', '!')) and not parts[1].isdigit():
             reason = parts[1]
         
@@ -145,6 +147,62 @@ async def cmd_warn_list(update, context):
         traceback.print_exc()
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
+async def cmd_my_warnings(update, context):
+    """!мои выговоры - показать свои активные выговоры (ТОЛЬКО ДЛЯ СЕБЯ)"""
+    print("\n🔥 ВЫПОЛНЕНИЕ !мои выговоры")
+    
+    try:
+        user_id = update.effective_user.id
+        chat_id = str(update.effective_chat.id)
+        
+        print(f"   user_id: {user_id}")
+        
+        # Игнорируем любые аргументы - показываем только себя
+        target_id = user_id
+        target_user = update.effective_user
+        
+        warning_count = get_warnings_count(target_id, chat_id)
+        max_warnings = get_user_max_warnings(target_id)
+        
+        clickable = get_clickable_name(target_id, target_user.first_name, target_user.username)
+        
+        # Получаем активные выговоры с деталями
+        active_warnings = get_user_warnings(target_id, chat_id, active_only=True)
+        
+        lines = []
+        lines.append(f"📊 <b>Ваши выговоры</b> — {clickable}")
+        lines.append(f"⚠️ <b>Всего выговоров:</b> {warning_count}/{max_warnings}")
+        lines.append("")
+        lines.append("🔥 <b>Активные выговоры</b>")
+        
+        if active_warnings:
+            for i, record in enumerate(active_warnings, 1):
+                # record: id, reason, warned_by_name, date, warned_by
+                reason = record[1] or 'Не указана'
+                admin_name = record[2] or 'Неизвестно'
+                date = datetime.fromisoformat(record[3]).strftime("%d.%m.%Y %H:%M")
+                
+                lines.append("")
+                lines.append(f"⚠️ <b>Выговор #{i}</b>")
+                lines.append(f"📝 За: {reason}")
+                lines.append(f"👮 Выдал: {admin_name}")
+                lines.append(f"📅 Дата: {date}")
+        else:
+            lines.append("")
+            lines.append("✨ У вас нет активных выговоров")
+        
+        await update.message.reply_text(
+            "\n".join(lines), 
+            parse_mode=ParseMode.HTML, 
+            reply_to_message_id=update.message.message_id
+        )
+        print("✅ Информация о выговорах отправлена")
+        
+    except Exception as e:
+        print(f"❌ Ошибка в cmd_my_warnings: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
+
 async def cmd_remove_warn(update, context):
     """!снять выговор - снять последний выговор (поддерживает @user и reply)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !снять выговор")
@@ -206,5 +264,6 @@ def register(app):
     print("📝 Регистрация команд warn.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!выговор\b'), cmd_warn))
     app.add_handler(MessageHandler(filters.Regex(r'^!лист\b'), cmd_warn_list))
+    app.add_handler(MessageHandler(filters.Regex(r'^!мои выговоры\b'), cmd_my_warnings))  # Только для себя
     app.add_handler(MessageHandler(filters.Regex(r'^!снять выговор\b'), cmd_remove_warn))
     print("✅ warn.py зарегистрирован")
