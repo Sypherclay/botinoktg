@@ -10,11 +10,46 @@ from database import (
     get_or_create_user, update_user_stats, get_or_create_topic,
     update_topic_stats, get_user_topic_count, is_first_in_album,
     cleanup_old_groups, is_auto_warn_enabled, is_whitelisted,
-    get_salary_counter, update_user_activity
+    update_user_activity, get_milestone_tracked_topics,
+    get_user_achieved_milestones, add_user_milestone,
+    get_user_custom_nick, get_milestone_message, get_user_info
 )
-from constants import MILESTONES, MILESTONE_MESSAGES
 from logger import log_auto_warn
 from commands.autowarn import process_auto_warn
+
+# ========== ФУНКЦИЯ ПРЯМО ЗДЕСЬ (без импорта из utils) ==========
+def check_milestones(user_id, chat_id, topic_id, message_count):
+    """Проверка достижения юбилейных отметок"""
+    try:
+        tracked_topics = get_milestone_tracked_topics()
+        if str(topic_id) not in tracked_topics:
+            return None
+        
+        achieved = get_user_achieved_milestones(user_id, chat_id)
+        milestones = [500, 1000, 1500, 2000, 2500, 3000]
+        
+        for milestone in milestones:
+            if message_count >= milestone and milestone not in achieved:
+                add_user_milestone(user_id, chat_id, milestone)
+                
+                custom_nick = get_user_custom_nick(user_id)
+                if custom_nick:
+                    user_display_name = custom_nick
+                else:
+                    user_info = get_user_info(user_id, chat_id)
+                    if user_info:
+                        user_display_name = user_info[0]
+                    else:
+                        user_display_name = f"Пользователь {user_id}"
+                
+                message_template = get_milestone_message(milestone)
+                if message_template:
+                    congrat_message = message_template.format(ник=user_display_name)
+                    return congrat_message
+    except Exception as e:
+        print(f"Ошибка в check_milestones: {e}")
+    
+    return None
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Обработка всех входящих сообщений"""
@@ -32,8 +67,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.left_chat_member:
         left = update.message.left_chat_member
         if not left.is_bot:
-            from commands.kick import handle_auto_leave
-            await handle_auto_leave(update, context, left)
+            # Функция handle_auto_leave должна быть в kick.py
+            try:
+                from commands.kick import handle_auto_leave
+                await handle_auto_leave(update, context, left)
+            except ImportError:
+                # Если функции нет - просто логируем
+                print(f"Пользователь {left.id} покинул чат")
         return
     
     # ========== ОСНОВНАЯ СТАТИСТИКА ==========
@@ -82,9 +122,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         elif not has_text and has_media:
             await process_auto_warn(update, context, user_id, True, False)
         
-        # Текст+медиа = ОК
+        # Текст+медиа = ОК (ничего не делаем)
         elif has_text and has_media:
-            pass  # OK
+            pass
     
     # ========== СОХРАНЕНИЕ В БД ==========
     if is_first:
@@ -113,7 +153,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
             pass
         
         # ========== ЮБИЛЕИ ==========
-        from utils.helpers import check_milestones
         count = get_user_topic_count(chat_id, topic_id, user_id)
         msg = check_milestones(user_id, chat_id, topic_id, count)
         
@@ -134,6 +173,8 @@ async def process_auto_warn(update, context, user_id, has_media, has_text):
         reset_auto_warn_count, add_warning, get_user_max_warnings,
         get_user_info, get_user_custom_nick
     )
+    from permissions import get_clickable_name
+    from commands.kick import kick_user
     
     chat_id = str(update.effective_chat.id)
     
@@ -170,7 +211,6 @@ async def process_auto_warn(update, context, user_id, has_media, has_text):
         
         max_w = get_user_max_warnings(user_id)
         
-        from permissions import get_clickable_name
         clickable = get_clickable_name(user_id, display, username)
         
         await update.message.reply_text(
@@ -181,5 +221,4 @@ async def process_auto_warn(update, context, user_id, has_media, has_text):
         
         # Проверка на кик
         if warn_count >= max_w:
-            from commands.kick import kick_user
             await kick_user(update, context, update.effective_user, "Лимит выговоров")
