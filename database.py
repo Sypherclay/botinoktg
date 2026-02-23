@@ -796,6 +796,129 @@ def delete_user_warnings(user_id, chat_id):
     conn.commit()
     conn.close()
     return deleted
+    
+# ========== РАСШИРЕННЫЕ ФУНКЦИИ ДЛЯ ВАРНОВ ==========
+
+def add_warning_v2(user_id, chat_id, reason, warned_by, warned_by_name, warn_type="ручной"):
+    """Добавить варн с причиной (новая версия)"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    date = datetime.now().isoformat()
+    
+    # Добавляем запись в warnings (используем ту же таблицу, но с пометкой типа)
+    cursor.execute('''
+        INSERT INTO warnings 
+        (user_id, chat_id, reason, warned_by, warned_by_name, date, active)
+        VALUES (?, ?, ?, ?, ?, ?, 1)
+    ''', (user_id, chat_id, f"[{warn_type}] {reason}", warned_by, warned_by_name, date))
+    
+    # Также увеличиваем счётчик в auto_warn_counts для совместимости
+    cursor.execute('''
+        INSERT INTO auto_warn_counts (user_id, chat_id, count, last_warn)
+        VALUES (?, ?, 1, ?)
+        ON CONFLICT(user_id, chat_id) DO UPDATE SET
+            count = count + 1,
+            last_warn = ?
+    ''', (user_id, chat_id, date, date))
+    
+    conn.commit()
+    
+    # Получаем общее количество варнов (активных)
+    cursor.execute('''
+        SELECT COUNT(*) FROM warnings 
+        WHERE user_id = ? AND chat_id = ? AND active = 1 
+        AND reason LIKE '[ручной]%'
+    ''', (user_id, chat_id))
+    total = cursor.fetchone()[0]
+    
+    conn.close()
+    return total
+
+def get_user_warns_with_reasons(user_id, chat_id, active_only=True):
+    """Получить все варны пользователя с причинами"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    if active_only:
+        cursor.execute('''
+            SELECT id, reason, warned_by_name, date, warned_by
+            FROM warnings 
+            WHERE user_id = ? AND chat_id = ? AND active = 1 
+            AND reason LIKE '[ручной]%'
+            ORDER BY date DESC
+        ''', (user_id, chat_id))
+    else:
+        cursor.execute('''
+            SELECT id, reason, warned_by_name, date, warned_by, active,
+                   removed_date, removed_by_name, removed_reason
+            FROM warnings 
+            WHERE user_id = ? AND chat_id = ? AND reason LIKE '[ручной]%'
+            ORDER BY date DESC
+        ''', (user_id, chat_id))
+    
+    res = cursor.fetchall()
+    conn.close()
+    return res
+
+def get_all_users_with_warns(chat_id):
+    """Получить всех пользователей с активными варнами и их причинами"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT w.user_id, u.name, u.username, w.reason, w.date, w.warned_by_name
+        FROM warnings w
+        LEFT JOIN users u ON w.user_id = u.user_id AND w.chat_id = u.chat_id
+        WHERE w.chat_id = ? AND w.active = 1 AND w.reason LIKE '[ручной]%'
+        ORDER BY w.date DESC
+    ''', (chat_id,))
+    
+    res = cursor.fetchall()
+    conn.close()
+    return res
+
+def remove_last_warn(user_id, chat_id, removed_by, removed_by_name):
+    """Снять последний активный варн (не выговор!)"""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    # Находим последний активный варн
+    cursor.execute('''
+        SELECT id, reason FROM warnings 
+        WHERE user_id = ? AND chat_id = ? AND active = 1 
+        AND reason LIKE '[ручной]%'
+        ORDER BY date DESC LIMIT 1
+    ''', (user_id, chat_id))
+    
+    res = cursor.fetchone()
+    
+    if not res:
+        conn.close()
+        return None
+    
+    warn_id, reason = res
+    
+    # Помечаем как снятый
+    cursor.execute('''
+        UPDATE warnings 
+        SET active = 0, 
+            removed_date = ?, 
+            removed_by = ?, 
+            removed_by_name = ?,
+            removed_reason = 'Снят вручную'
+        WHERE id = ?
+    ''', (datetime.now().isoformat(), removed_by, removed_by_name, warn_id))
+    
+    # Также уменьшаем счётчик в auto_warn_counts
+    cursor.execute('''
+        UPDATE auto_warn_counts 
+        SET count = CASE WHEN count > 0 THEN count - 1 ELSE 0 END
+        WHERE user_id = ? AND chat_id = ?
+    ''', (user_id, chat_id))
+    
+    conn.commit()
+    conn.close()
+    return reason
 
 # ========== ОТПУСКА ==========
 
