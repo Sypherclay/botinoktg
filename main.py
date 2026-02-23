@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ГЛАВНЫЙ ФАЙЛ БОТА - РАДИКАЛЬНАЯ ВЕРСИЯ
+ГЛАВНЫЙ ФАЙЛ БОТА - МИНИМАЛЬНАЯ ВЕРСИЯ
 """
 import os
 from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
@@ -12,32 +12,20 @@ from logger import setup_logger
 from user_resolver import set_owner_id
 from config import OWNER_ID
 
-# Простая функция для отладки
-async def debug_all_messages(update, context):
-    """Ловит ВСЕ сообщения для отладки"""
+# Простой дебаггер
+async def debug_all(update, context):
     if update.message:
-        text = update.message.text or "[медиа]"
-        print(f"\n📨 ВСЕ СООБЩЕНИЯ: {text}")
+        print(f"\n📨 СООБЩЕНИЕ: {update.message.text}")
         print(f"   Это команда? {update.message.text and update.message.text.startswith(('!', '/'))}")
 
-async def handle_non_command(update, context):
-    """Обработка НЕ-команд"""
-    if update.message and update.message.text:
-        if update.message.text.startswith(('!', '/')):
-            # Это команда - игнорируем, она будет обработана отдельно
-            return
-    print(f"📝 Не-команда: {update.message.text if update.message else 'без текста'}")
-
-def setup_jobs(app):
-    try:
-        from handlers.jobs import setup_all_jobs
-        setup_all_jobs(app)
-    except Exception as e:
-        print(f"⚠️ Ошибка задач: {e}")
+# Простая тестовая команда прямо здесь
+async def test_direct(update, context):
+    print("🔥🔥🔥 ПРЯМАЯ КОМАНДА СРАБОТАЛА! 🔥🔥🔥")
+    await update.message.reply_text("✅ Прямая команда работает!")
 
 def main():
     print("\n" + "="*50)
-    print("🚀 ЗАПУСК БОТА (ДИАГНОСТИКА)")
+    print("🚀 МИНИМАЛЬНЫЙ ТЕСТ")
     print("="*50)
     
     os.makedirs("backups", exist_ok=True)
@@ -47,38 +35,25 @@ def main():
     init_database()
     set_owner_id(OWNER_ID)
     
-    print("🔌 Подключение к Telegram...")
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # 1. ДЕБАГГЕР - ловит ВСЁ (самый первый)
-    app.add_handler(MessageHandler(filters.ALL, debug_all_messages), group=-1)
-    
-    # 2. ТЕСТОВАЯ КОМАНДА (самая простая)
-    async def test_cmd(update, context):
-        print("✅ ТЕСТОВАЯ КОМАНДА СРАБОТАЛА!")
-        await update.message.reply_text("✅ Работает!")
-    
-    app.add_handler(CommandHandler("test", test_cmd))
+    # 1. ПРЯМАЯ ТЕСТОВАЯ КОМАНДА (самый высокий приоритет)
+    print("➕ Добавление прямой тестовой команды")
+    app.add_handler(CommandHandler("testdirect", test_direct))
     app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!тест\b'), 
-        test_cmd
+        filters.COMMAND & filters.Regex(r'^!прямая\b'), 
+        test_direct
     ))
     
-    # 3. ВСЕ ОСТАЛЬНЫЕ КОМАНДЫ ИЗ ПАПКИ
-    print("\n📦 Загрузка команд...")
+    # 2. Дебаггер (видит всё)
+    app.add_handler(MessageHandler(filters.ALL, debug_all), group=-1)
+    
+    # 3. Все команды из папки
+    print("\n📦 Загрузка команд из папки...")
     register_all_commands(app)
     
     # 4. Callback обработчик
     app.add_handler(CallbackQueryHandler(handle_callback_query))
-    
-    # 5. Обработчик НЕ-команд (только если это не команда)
-    app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND, 
-        handle_non_command
-    ))
-    
-    print("\n⏰ Настройка задач...")
-    setup_jobs(app)
     
     print("\n" + "="*50)
     print("✅ БОТ ГОТОВ!")
