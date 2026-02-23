@@ -1,25 +1,20 @@
 """
-ТЕСТОВАЯ КОМАНДА
+ТЕСТОВАЯ КОМАНДА - МАКСИМАЛЬНО ПРОСТАЯ
 """
 from telegram.ext import MessageHandler, filters
 
 async def cmd_test(update, context):
-    """Обработчик команды !тест"""
-    print("🔥🔥🔥 КОМАНДА ИЗ ФАЙЛА test.py СРАБОТАЛА! 🔥🔥🔥")
-    print(f"   Пользователь: {update.effective_user.first_name}")
-    print(f"   Чат: {update.effective_chat.id}")
-    await update.message.reply_text("✅ Команда из файла test.py работает!")
+    """Самая простая тестовая команда"""
+    print("🔥🔥🔥🔥🔥 ТЕСТОВАЯ КОМАНДА СРАБОТАЛА! 🔥🔥🔥🔥🔥")
+    print(f"   Текст: {update.message.text}")
+    print(f"   От: {update.effective_user.id}")
+    await update.message.reply_text("✅ РАБОТАЕТ!")
 
 def register(app):
-    """Регистрация команды"""
-    print("  📝 Регистрация команды !тест в test.py")
-    # Добавляем обработчик для !тест
+    """Регистрация"""
+    print("  📝 РЕГИСТРАЦИЯ ТЕСТОВОЙ КОМАНДЫ")
+    # Только одна команда для простоты
     app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!тест\b'), 
-        cmd_test
-    ))
-    # Добавляем для /тест
-    app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^/тест\b'), 
+        filters.Regex(r'^!тест$'),  # Точное совпадение, без пробелов
         cmd_test
     ))
