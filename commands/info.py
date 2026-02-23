@@ -1,6 +1,5 @@
 """
-ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЯХ
-!инфа, !кто админ - РАБОЧАЯ ВЕРСИЯ
+ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЯХ - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 from datetime import datetime
 from telegram.ext import MessageHandler, filters
@@ -15,6 +14,8 @@ from database import (
 from permissions import get_clickable_name
 from user_resolver import resolve_user
 from constants import RANKS
+
+print("✅ info.py загружен!")
 
 def get_top_user(chat_id, field):
     conn = sqlite3.connect(DB_PATH)
@@ -39,6 +40,8 @@ def get_top_balance(chat_id):
 
 async def cmd_who_admin(update, context):
     """Команда !кто админ"""
+    print("\n🔥🔥🔥 ВЫПОЛНЕНИЕ !кто админ")
+    
     user_id = update.effective_user.id
     chat_id = str(update.effective_chat.id)
     
@@ -93,14 +96,23 @@ async def cmd_who_admin(update, context):
     if not response:
         response = "📭 Нет администраторов с рангами"
     
+    print(f"📤 Отправка ответа (длина: {len(response)})")
     await update.message.reply_text(response, parse_mode=ParseMode.HTML, reply_to_message_id=update.message.message_id)
+    print("✅ Ответ отправлен!")
 
 async def cmd_info(update, context):
     """Команда !инфа"""
+    print("\n🔥🔥🔥 ВЫПОЛНЕНИЕ !инфа")
+    print(f"   Текст: {update.message.text}")
+    print(f"   От: {update.effective_user.first_name}")
+    
     chat_id = str(update.effective_chat.id)
     user = await resolve_user(update, context, required=False, allow_self=True)
     if not user:
+        print("❌ resolve_user вернул None")
         return
+    
+    print(f"✅ user найден: {user.id}")
     
     info = get_user_info(user.id, chat_id)
     name = info[0] if info else user.first_name
@@ -166,11 +178,13 @@ async def cmd_info(update, context):
     if user.username:
         response += f"\n🌐 <b>Username:</b> @{user.username}"
     
+    print(f"📤 Отправка ответа (длина: {len(response)})")
     await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+    print("✅ Ответ отправлен!")
 
 def register(app):
     print("📝 Регистрация команд info.py...")
-    # ⚠️ ВАЖНО: используем только Regex, без filters.COMMAND!
+    # ⚠️ ВАЖНО: используем точное совпадение без пробелов
     app.add_handler(MessageHandler(filters.Regex(r'^!кто админ$'), cmd_who_admin))
     app.add_handler(MessageHandler(filters.Regex(r'^!инфа$'), cmd_info))
     app.add_handler(MessageHandler(filters.Regex(r'^!info$'), cmd_info))
