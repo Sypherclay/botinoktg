@@ -143,7 +143,7 @@ async def cmd_info(update, context):
     """Команда !инфа"""
     print("\n" + "="*50)
     print("🔥 ВЫПОЛНЕНИЕ КОМАНДЫ !инфа")
-    print("="*50")
+    print("="*50)
     
     try:
         print(f"   Текст команды: {update.message.text}")
