@@ -1,10 +1,11 @@
 """
-ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЯХ - ИСПРАВЛЕННАЯ ВЕРСИЯ
+ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЯХ - С ДИАГНОСТИКОЙ RESOLVE_USER
 """
 from datetime import datetime
 from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
 import sqlite3
+import traceback
 from database import (
     get_user_info, get_user_custom_nick, get_user_rank_db,
     get_warnings_count, get_user_max_warnings,
@@ -106,85 +107,91 @@ async def cmd_info(update, context):
     print(f"   Текст: {update.message.text}")
     print(f"   От: {update.effective_user.first_name}")
     
-    chat_id = str(update.effective_chat.id)
-    user = await resolve_user(update, context, required=False, allow_self=True)
-    if not user:
-        print("❌ resolve_user вернул None")
-        return
-    
-    print(f"✅ user найден: {user.id}")
-    
-    info = get_user_info(user.id, chat_id)
-    name = info[0] if info else user.first_name
-    username = info[1] if info else user.username
-    custom = get_user_custom_nick(user.id)
-    display = custom if custom else name
-    clickable = get_clickable_name(user.id, display, username)
-    
-    rank = get_user_rank_db(user.id)
-    rank_name = RANKS.get(rank, {}).get('name', 'Участник')
-    warnings = get_warnings_count(user.id, chat_id)
-    max_w = int(get_setting('max_warnings', '3'))
-    immunity = rank in ['owner', 'curator', 'custom', 'helper_plus']
-    
-    vacation = get_vacation_info(user.id)
-    used_days = vacation[2] if vacation else 0
-    limit = int(get_setting('max_vacation_days', '14'))
-    vacation_status = "нет"
-    if vacation and datetime.now() <= datetime.fromisoformat(vacation[1]):
-        vacation_status = f"до {datetime.fromisoformat(vacation[1]).strftime('%d.%m.%Y')}"
-    
-    balance = get_user_balance(user.id)
-    
-    top_activity = get_top_user(chat_id, 'count')
-    top_punish = get_top_user(chat_id, 'punishments')
-    top_balance = get_top_balance(chat_id)
-    
-    badges = []
-    if user.id == top_activity:
-        badges.append("🏆 ТОП-1 Актив")
-    if user.id == top_punish:
-        badges.append("👑 ТОП-1 Наказания")
-    if user.id == top_balance:
-        badges.append("💎 ТОП-1 Баланс")
-    
-    rewards = get_user_rewards(user.id)
-    reward_badges = ['💸 ЗА ДЕНЬГИ ДА' if '10_complaints' in rewards else '']
-    reward_badges = [r for r in reward_badges if r]
-    
-    response = f"👤 <b>Пользователь:</b> {clickable}\n"
-    response += f"🎖️ <b>Должность:</b> {rank_name}\n\n"
-    
-    if badges:
-        response += f"{' | '.join(badges)}\n\n"
-    
-    if immunity:
-        response += f"⚠️ <b>Выговоры:</b> 🛡️ ИММУНИТЕТ\n"
-    else:
-        response += f"⚠️ <b>Выговоры:</b> {warnings}/{max_w}\n"
-    
-    response += f"🏖️ <b>Отпуск:</b> {used_days}/{limit} дней"
-    if vacation_status != "нет":
-        response += f"\n📅 <b>В отпуске:</b> {vacation_status}"
-    else:
-        response += f"\n📅 <b>В отпуске:</b> нет"
-    
-    response += f"\n💰 <b>Баланс:</b> {balance} HC"
-    
-    if reward_badges:
-        response += f"\n\n🎁 <b>Ачивки:</b> {' | '.join(reward_badges)}"
-    
-    response += f"\n\n🆔 <b>ID:</b> <code>{user.id}</code>"
-    if user.username:
-        response += f"\n🌐 <b>Username:</b> @{user.username}"
-    
-    print(f"📤 Отправка ответа (длина: {len(response)})")
-    await update.message.reply_text(response, parse_mode=ParseMode.HTML)
-    print("✅ Ответ отправлен!")
+    try:
+        chat_id = str(update.effective_chat.id)
+        print(f"   chat_id: {chat_id}")
+        
+        print("🔍 Вызов resolve_user...")
+        user = await resolve_user(update, context, required=False, allow_self=True)
+        
+        if not user:
+            print("❌ resolve_user вернул None - выход")
+            await update.message.reply_text("❌ Ошибка: пользователь не найден")
+            return
+        
+        print(f"✅ user найден: ID={user.id}, имя={user.first_name}")
+        
+        print("🔍 Получение информации о пользователе...")
+        info = get_user_info(user.id, chat_id)
+        print(f"   info: {info}")
+        
+        name = info[0] if info else user.first_name
+        username = info[1] if info else user.username
+        custom = get_user_custom_nick(user.id)
+        display = custom if custom else name
+        print(f"   name: {name}, username: {username}, custom: {custom}")
+        
+        print("🔍 Получение clickable_name...")
+        clickable = get_clickable_name(user.id, display, username)
+        print(f"   clickable: {clickable}")
+        
+        print("🔍 Получение ранга...")
+        rank = get_user_rank_db(user.id)
+        rank_name = RANKS.get(rank, {}).get('name', 'Участник')
+        print(f"   rank: {rank}, rank_name: {rank_name}")
+        
+        print("🔍 Получение выговоров...")
+        warnings = get_warnings_count(user.id, chat_id)
+        max_w = int(get_setting('max_warnings', '3'))
+        immunity = rank in ['owner', 'curator', 'custom', 'helper_plus']
+        print(f"   warnings: {warnings}, max_w: {max_w}")
+        
+        print("🔍 Получение отпусков...")
+        vacation = get_vacation_info(user.id)
+        used_days = vacation[2] if vacation else 0
+        limit = int(get_setting('max_vacation_days', '14'))
+        print(f"   vacation: {vacation}")
+        
+        vacation_status = "нет"
+        if vacation and datetime.now() <= datetime.fromisoformat(vacation[1]):
+            vacation_status = f"до {datetime.fromisoformat(vacation[1]).strftime('%d.%m.%Y')}"
+        
+        print("🔍 Получение баланса...")
+        balance = get_user_balance(user.id)
+        print(f"   balance: {balance}")
+        
+        print("🔍 Формирование ответа...")
+        response = f"👤 <b>Пользователь:</b> {clickable}\n"
+        response += f"🎖️ <b>Должность:</b> {rank_name}\n\n"
+        
+        if immunity:
+            response += f"⚠️ <b>Выговоры:</b> 🛡️ ИММУНИТЕТ\n"
+        else:
+            response += f"⚠️ <b>Выговоры:</b> {warnings}/{max_w}\n"
+        
+        response += f"🏖️ <b>Отпуск:</b> {used_days}/{limit} дней"
+        if vacation_status != "нет":
+            response += f"\n📅 <b>В отпуске:</b> {vacation_status}"
+        else:
+            response += f"\n📅 <b>В отпуске:</b> нет"
+        
+        response += f"\n💰 <b>Баланс:</b> {balance} HC"
+        
+        response += f"\n\n🆔 <b>ID:</b> <code>{user.id}</code>"
+        if user.username:
+            response += f"\n🌐 <b>Username:</b> @{user.username}"
+        
+        print(f"📤 Отправка ответа (длина: {len(response)})")
+        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
+        print("✅ Ответ отправлен!")
+        
+    except Exception as e:
+        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 def register(app):
     print("📝 Регистрация команд info.py...")
-    # ⚠️ ВАЖНО: используем точное совпадение без пробелов
     app.add_handler(MessageHandler(filters.Regex(r'^!кто админ$'), cmd_who_admin))
     app.add_handler(MessageHandler(filters.Regex(r'^!инфа$'), cmd_info))
     app.add_handler(MessageHandler(filters.Regex(r'^!info$'), cmd_info))
