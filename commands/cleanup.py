@@ -2,7 +2,7 @@
 ОЧИСТКА ЧАТА
 !cleanchat
 """
-from telegram.ext import CommandHandler
+from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
 from permissions import is_owner
 from database import (
@@ -27,13 +27,9 @@ async def cmd_cleanchat(update, context):
     msg = await update.message.reply_text("🧹 Очистка данных...")
     
     cleaned = 0
-    fixed = 0
-    
-    # Получаем всех пользователей чата
     users = get_all_users_in_chat(chat_id)
     
     for uid, name, username in users:
-        # Проверяем аномальных пользователей
         if uid in [777000, 1087968824]:
             delete_user_warnings(uid, chat_id)
             delete_user_from_all_topics(uid, chat_id)
@@ -50,10 +46,9 @@ async def cmd_cleanchat(update, context):
     await msg.edit_text(
         f"✅ <b>Очистка завершена!</b>\n\n"
         f"🧹 Удалено проблемных записей: {cleaned}\n"
-        f"🔧 Исправлено: {fixed}\n"
         f"👥 Всего пользователей: {len(users)}",
         parse_mode=ParseMode.HTML
     )
 
 def register(app):
-    app.add_handler(CommandHandler("cleanchat", cmd_cleanchat))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!cleanchat\b'), cmd_cleanchat))

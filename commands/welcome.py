@@ -2,7 +2,7 @@
 ПРИВЕТСТВЕННЫЕ СООБЩЕНИЯ
 /setwelcome, /welcome, /welcomestatus, /showwelcome, /welcomereset
 """
-from telegram.ext import CommandHandler
+from telegram.ext import CommandHandler, MessageHandler, filters
 from telegram.constants import ParseMode
 from telegram import User
 from database import (
@@ -10,7 +10,7 @@ from database import (
     enable_chat_welcome, disable_chat_welcome,
     get_welcome_status, set_global_welcome_status
 )
-from permissions import is_admin, is_owner
+from permissions import is_admin, is_owner, get_clickable_name
 from logger import log_admin_action
 
 async def cmd_setwelcome(update, context):
@@ -38,14 +38,10 @@ async def cmd_setwelcome(update, context):
     chat_id = str(update.effective_chat.id)
     text = ' '.join(context.args)
     
-    # Заменяем {{user}} на корректный формат для БД
-    # В БД храним с {user}, но в команде используем {{user}} для экранирования
     db_text = text.replace('{{user}}', '{user}').replace('{{user_name}}', '{user_name}').replace('{{mention}}', '{mention}').replace('{{id}}', '{id}').replace('{{chat}}', '{chat}')
     
     set_chat_welcome(chat_id, db_text)
     
-    # Предпросмотр
-    from permissions import get_clickable_name
     test_user = User(id=123456789, first_name="Иван", is_bot=False, username="ivan")
     test_clickable = get_clickable_name(123456789, "Иван", "ivan")
     
@@ -152,9 +148,50 @@ async def cmd_welcomereset(update, context):
     
     await update.message.reply_text("✅ Приветствие сброшено к стандартному")
 
+async def handle_new_member(update, context):
+    """Обработчик новых участников"""
+    if not update.message or not update.message.new_chat_members:
+        return
+    
+    chat_id = str(update.effective_chat.id)
+    status = get_welcome_status(chat_id)
+    
+    if not status['global_enabled'] or not status['chat_enabled']:
+        return
+    
+    welcome_text = status['message']
+    if not welcome_text:
+        welcome_text = "👋 Добро пожаловать, {user}!"
+    
+    for new_member in update.message.new_chat_members:
+        if new_member.is_bot:
+            continue
+        
+        clickable_name = get_clickable_name(
+            new_member.id,
+            new_member.first_name or "",
+            new_member.username or ""
+        )
+        
+        formatted_text = welcome_text.replace('{user}', clickable_name)
+        formatted_text = formatted_text.replace('{user_name}', new_member.full_name or f"User {new_member.id}")
+        formatted_text = formatted_text.replace('{mention}', f"@{new_member.username}" if new_member.username else new_member.full_name)
+        formatted_text = formatted_text.replace('{id}', str(new_member.id))
+        formatted_text = formatted_text.replace('{chat}', update.effective_chat.title or "группу")
+        
+        try:
+            await update.message.reply_text(
+                formatted_text,
+                parse_mode=ParseMode.HTML,
+                reply_to_message_id=update.message.message_id
+            )
+        except Exception as e:
+            print(f"Ошибка отправки приветствия: {e}")
+
 def register(app):
     app.add_handler(CommandHandler("setwelcome", cmd_setwelcome))
     app.add_handler(CommandHandler("welcome", cmd_welcome))
     app.add_handler(CommandHandler("welcomestatus", cmd_welcomestatus))
     app.add_handler(CommandHandler("showwelcome", cmd_showwelcome))
     app.add_handler(CommandHandler("welcomereset", cmd_welcomereset))
+    # Обработчик новых участников добавляется в message_handler.py

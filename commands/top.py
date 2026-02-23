@@ -2,7 +2,7 @@
 ТОП-КОМАНДЫ
 !топ баланс, !топ наказания, !топ актив
 """
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
 import sqlite3
 from database import DB_PATH
@@ -125,4 +125,4 @@ async def top_activity(update, chat_id):
     await update.message.reply_text("\n".join(lines), parse_mode=ParseMode.HTML)
 
 def register(app):
-    app.add_handler(CommandHandler("топ", cmd_top))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!топ\b'), cmd_top))

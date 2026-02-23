@@ -2,12 +2,10 @@
 УПРАВЛЕНИЕ РАНГАМИ
 !хелпер, !модер, !куратор, !разжаловать и другие
 """
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters, CommandHandler
 from telegram.constants import ParseMode
-from telegram import User
 from database import (
-    set_user_rank_db, get_user_rank_db, get_user_info,
-    get_user_by_username, get_user_id_by_custom_nick
+    set_user_rank_db, get_user_rank_db
 )
 from permissions import has_permission, is_owner, get_user_rank, get_clickable_name
 from user_resolver import resolve_user
@@ -19,21 +17,16 @@ async def handle_rank_command(update, context, rank_name):
     user_id = update.effective_user.id
     chat_id = str(update.effective_chat.id)
     
-    # Проверка прав
     if is_owner(user_id):
-        pass  # Владелец может всё
+        pass
     else:
         admin_rank = get_user_rank(user_id)
         
-        # Куратор не может назначать владельца и куратора
         if admin_rank == 'curator' and rank_name in ['owner', 'curator']:
             rank_display = RANKS[rank_name]['name']
-            await update.message.reply_text(
-                f"❌ Куратор не может назначать ранг '{rank_display}'"
-            )
+            await update.message.reply_text(f"❌ Куратор не может назначать ранг '{rank_display}'")
             return
         
-        # Обычная проверка прав
         command_map = {
             'deputy_curator': '!зам',
             'manager': '!руководитель',
@@ -43,12 +36,9 @@ async def handle_rank_command(update, context, rank_name):
         command = command_map.get(rank_name, f'!{rank_name}')
         
         if not has_permission(user_id, command):
-            await update.message.reply_text(
-                f"❌ У вас нет прав назначать ранг '{RANKS[rank_name]['name']}'"
-            )
+            await update.message.reply_text(f"❌ У вас нет прав назначать ранг '{RANKS[rank_name]['name']}'")
             return
     
-    # Поиск пользователя
     user = await resolve_user(update, context)
     if not user:
         return
@@ -135,13 +125,12 @@ async def cmd_demote(update, context):
         )
 
 def register(app):
-    # Все команды рангов
-    app.add_handler(MessageHandler("хелпер", lambda u,c: handle_rank_command(u,c,'helper')))
-    app.add_handler(MessageHandler("модер", lambda u,c: handle_rank_command(u,c,'moder')))
-    app.add_handler(MessageHandler("руководитель", lambda u,c: handle_rank_command(u,c,'manager')))
-    app.add_handler(MessageHandler("зам", lambda u,c: handle_rank_command(u,c,'deputy_curator')))
-    app.add_handler(MessageHandler("куратор", lambda u,c: handle_rank_command(u,c,'curator')))
-    app.add_handler(MessageHandler("владелец", lambda u,c: handle_rank_command(u,c,'owner')))
-    app.add_handler(MessageHandler("кастом", lambda u,c: handle_rank_command(u,c,'custom')))
-    app.add_handler(MessageHandler("хелпер+", lambda u,c: handle_rank_command(u,c,'helper_plus')))
-    app.add_handler(MessageHandler("разжаловать", cmd_demote))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!хелпер\b'), lambda u,c: handle_rank_command(u,c,'helper')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!модер\b'), lambda u,c: handle_rank_command(u,c,'moder')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!руководитель\b'), lambda u,c: handle_rank_command(u,c,'manager')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!зам\b'), lambda u,c: handle_rank_command(u,c,'deputy_curator')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!куратор\b'), lambda u,c: handle_rank_command(u,c,'curator')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!владелец\b'), lambda u,c: handle_rank_command(u,c,'owner')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!кастом\b'), lambda u,c: handle_rank_command(u,c,'custom')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!хелпер\+\b'), lambda u,c: handle_rank_command(u,c,'helper_plus')))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!разжаловать\b'), cmd_demote))

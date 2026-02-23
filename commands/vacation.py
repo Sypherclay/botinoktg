@@ -3,15 +3,15 @@
 !отпуск, !мой отпуск, !сброс
 """
 from datetime import datetime, timedelta
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
 from database import (
     set_vacation, get_vacation, end_vacation, reset_all_vacations,
-    get_setting, get_user_info
+    get_setting
 )
 from permissions import has_permission, is_admin, get_clickable_name
 from user_resolver import resolve_user
-from logger import log_user_action, log_admin_action, log_command
+from logger import log_user_action, log_admin_action
 
 async def cmd_vacation(update, context):
     """!отпуск КОЛИЧЕСТВО_ДНЕЙ - уйти в отпуск"""
@@ -44,7 +44,6 @@ async def cmd_vacation(update, context):
             )
             return
         
-        # Проверяем, не в отпуске ли уже
         existing = get_vacation(user_id)
         if existing:
             end_date = datetime.fromisoformat(existing[1]).strftime("%d.%m.%Y")
@@ -87,7 +86,6 @@ async def cmd_my_vacation(update, context):
     """!мой отпуск - показать свой отпуск"""
     user_id = update.effective_user.id
     
-    # Если есть аргументы - смотрим другого пользователя
     target_id = user_id
     target_user = update.effective_user
     
@@ -128,14 +126,12 @@ async def cmd_reset_vacations(update, context):
     user_id = update.effective_user.id
     
     if not is_admin(user_id):
-        await update.message.reply_text("❌ Только администраторы могут использовать эту команду")
+        await update.message.reply_text("❌ Только администраторы")
         return
     
     if not context.args or context.args[0].lower() != 'confirm':
         await update.message.reply_text(
             "⚠️ <b>Сброс всех отпусков</b>\n\n"
-            "Эта команда сбросит информацию об отпусках для ВСЕХ пользователей.\n"
-            "Действие необратимо!\n\n"
             "Для подтверждения введите:\n"
             "<code>!сброс confirm</code>",
             parse_mode=ParseMode.HTML
@@ -162,9 +158,6 @@ async def cmd_reset_vacations(update, context):
     )
 
 def register(app):
-    app.add_handler(CommandHandler("отпуск", cmd_vacation))
-    app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!мой отпуск\b'),
-        cmd_my_vacation
-    ))
-    app.add_handler(CommandHandler("сброс", cmd_reset_vacations))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!отпуск\b'), cmd_vacation))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!мой отпуск\b'), cmd_my_vacation))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!сброс\b'), cmd_reset_vacations))

@@ -3,14 +3,13 @@
 !жалоба
 """
 import re
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
 from database import (
     get_all_admins, get_all_users_with_rank,
     increment_complaint_count, has_reward, add_reward
 )
 from permissions import get_clickable_name
-from user_resolver import resolve_user
 
 async def cmd_complaint(update, context):
     """!жалоба [текст] - пожаловаться на наказание (ответом)"""
@@ -22,15 +21,12 @@ async def cmd_complaint(update, context):
     replied = update.message.reply_to_message
     complainant = update.effective_user
     
-    # Текст жалобы
     text = ' '.join(context.args) if context.args else "Без объяснения"
     
-    # Кому отправляем (админы + кураторы)
     admins = get_all_admins()
     curators = get_all_users_with_rank('curator')
     notify = set(admins + curators)
     
-    # Ссылка на сообщение
     chat_id = str(update.effective_chat.id)
     if chat_id.startswith('-100'):
         chat_short = chat_id[4:]
@@ -40,14 +36,12 @@ async def cmd_complaint(update, context):
     punish_link = f"https://t.me/c/{chat_short}/{replied.message_id}"
     complaint_link = f"https://t.me/c/{chat_short}/{update.message.message_id}"
     
-    # Имя жалобщика
     complainant_name = get_clickable_name(
         complainant.id,
         complainant.first_name,
         complainant.username
     )
     
-    # Поиск ID хелпера из сообщения
     helper_id = None
     msg_text = replied.text or replied.caption or ""
     
@@ -65,7 +59,6 @@ async def cmd_complaint(update, context):
     
     helper_text = f"🆔 <b>ID хелпера:</b> <code>{helper_id}</code>\n" if helper_id else ""
     
-    # Отправка уведомлений
     sent = 0
     for aid in notify:
         try:
@@ -88,7 +81,6 @@ async def cmd_complaint(update, context):
         except:
             pass
     
-    # Награды
     new_count = increment_complaint_count(complainant.id)
     
     if new_count >= 10 and not has_reward(complainant.id, '10_complaints'):
@@ -110,4 +102,4 @@ async def cmd_complaint(update, context):
     )
 
 def register(app):
-    app.add_handler(CommandHandler("жалоба", cmd_complaint))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!жалоба\b'), cmd_complaint))

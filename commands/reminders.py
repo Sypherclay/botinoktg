@@ -83,5 +83,21 @@ async def cmd_notifyactive(update, context):
     else:
         await update.message.reply_text("❌ Неизвестная команда. /notifyactive для справки")
 
+# ✅ ФУНКЦИЯ ДЛЯ jobs.py
+async def check_inactivity_reminders(context):
+    """Проверка неактивных пользователей (вызывается из jobs.py)"""
+    try:
+        print("🔍 Проверка неактивных пользователей...")
+        settings = get_reminder_settings()
+        if not settings.get('enabled', True):
+            print("⏸️ Напоминания отключены")
+            return
+        
+        # Здесь будет логика проверки неактивных пользователей
+        # Можно реализовать позже
+        
+    except Exception as e:
+        print(f"❌ Ошибка в check_inactivity_reminders: {e}")
+
 def register(app):
     app.add_handler(CommandHandler("notifyactive", cmd_notifyactive))

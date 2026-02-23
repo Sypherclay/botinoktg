@@ -20,11 +20,9 @@ async def cmd_backup(update, context):
         return
     
     try:
-        # Папка для бэкапов
         backup_dir = "backups"
         os.makedirs(backup_dir, exist_ok=True)
         
-        # Имя файла
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file = f"{backup_dir}/bot_database_{timestamp}.db"
         
@@ -32,7 +30,6 @@ async def cmd_backup(update, context):
             shutil.copy2("bot_database.db", backup_file)
             size = os.path.getsize(backup_file) / 1024
             
-            # Количество бэкапов
             count = len(glob.glob(f"{backup_dir}/bot_database_*.db"))
             
             admin_name = update.effective_user.full_name

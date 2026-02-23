@@ -8,10 +8,10 @@ from telegram.constants import ParseMode
 from database import (
     get_all_chats, get_chat_topics, get_topic_users,
     get_user_info, get_user_custom_nick, get_user_punishments,
-    get_warnings_count, get_user_max_warnings, get_user_topic_count
+    get_warnings_count, get_user_max_warnings, get_user_topic_count,
+    is_moderator_db
 )
-from permissions import is_admin, is_owner
-from database import is_moderator_db
+from permissions import is_admin, is_owner, get_clickable_name
 from logger import log_command
 
 # Хранилище сессий (в памяти)
@@ -21,12 +21,10 @@ async def cmd_stats(update, context):
     """Главное меню статистики"""
     user_id = update.effective_user.id
     
-    # Проверка доступа
     if not (is_admin(user_id) or is_owner(user_id) or is_moderator_db(user_id)):
         await update.message.reply_text("❌ Доступ запрещен")
         return
     
-    # Инициализация сессии
     user_selections[user_id] = {
         'chat_id': None,
         'topic_id': None,
@@ -34,12 +32,10 @@ async def cmd_stats(update, context):
         'step': 'select_chat'
     }
     
-    # Получаем все чаты
     chats = get_all_chats()
     
     keyboard = []
     for chat_id in chats:
-        # Пытаемся получить название
         try:
             chat = await context.bot.get_chat(int(chat_id))
             name = chat.title or chat_id
@@ -97,12 +93,10 @@ async def stats_callback(update, context):
     user_id = query.from_user.id
     data = query.data
     
-    # Проверка доступа
     if not (is_admin(user_id) or is_owner(user_id) or is_moderator_db(user_id)):
         await query.edit_message_text("❌ Доступ запрещен")
         return
     
-    # Отмена
     if data == "stats_cancel":
         if user_id in user_selections:
             del user_selections[user_id]
@@ -113,12 +107,10 @@ async def stats_callback(update, context):
         await query.edit_message_text("📭 Нет доступных чатов")
         return
     
-    # Выбор чата
     if data.startswith("stats_chat_"):
         chat_id = data.replace("stats_chat_", "")
         user_selections[user_id]['chat_id'] = chat_id
         user_selections[user_id]['step'] = 'select_topic'
-        
         await show_topics(query, chat_id)
         return
     
@@ -128,18 +120,15 @@ async def stats_callback(update, context):
         await show_quick_stats(query, chat_id)
         return
     
-    # Выбор темы
     if data.startswith("stats_topic_"):
         topic = data.replace("stats_topic_", "")
         if topic == "all":
             user_selections[user_id]['topic_id'] = None
         else:
             user_selections[user_id]['topic_id'] = topic
-        
         await show_users(query, user_id)
         return
     
-    # Назад
     if data == "stats_back_chat":
         del user_selections[user_id]
         await cmd_stats(update, context)
@@ -154,7 +143,6 @@ async def stats_callback(update, context):
         await show_users(query, user_id)
         return
     
-    # Выбор пользователя
     if data.startswith("stats_user_"):
         uid = data.replace("stats_user_", "")
         if uid == "all":
@@ -233,7 +221,6 @@ async def show_user_stats(query, user_id, target_id):
     nick = get_user_custom_nick(target_id)
     display = nick if nick else name
     
-    from permissions import get_clickable_name
     clickable = get_clickable_name(target_id, display, username)
     
     total = get_user_topic_count(chat_id, topic, target_id)

@@ -3,30 +3,44 @@
 !инфа, !кто админ
 """
 from datetime import datetime
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
+import sqlite3
 from database import (
     get_user_info, get_user_custom_nick, get_user_rank_db,
-    get_user_warnings_count, get_user_max_warnings,
+    get_warnings_count, get_user_max_warnings,
     get_vacation_info, get_user_balance, get_setting,
-    get_user_by_username, get_user_id_by_custom_nick, get_user_rewards
+    get_user_rewards, DB_PATH
 )
-from permissions import has_permission, get_clickable_name
+from permissions import get_clickable_name
 from user_resolver import resolve_user
-from constants import RANKS, OWNER_ID
-import sqlite3
-from database import DB_PATH
+from constants import RANKS
+
+def get_top_user(chat_id, field):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(f'SELECT user_id FROM users WHERE chat_id = ? ORDER BY {field} DESC LIMIT 1', (chat_id,))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] if res else None
+
+def get_top_balance(chat_id):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT s.user_id FROM salary s
+        JOIN users u ON s.user_id = u.user_id
+        WHERE u.chat_id = ?
+        ORDER BY s.balance DESC LIMIT 1
+    ''', (chat_id,))
+    res = cursor.fetchone()
+    conn.close()
+    return res[0] if res else None
 
 async def cmd_who_admin(update, context):
-    """!кто админ - список администраторов по рангам"""
     user_id = update.effective_user.id
     chat_id = str(update.effective_chat.id)
     
-    if not has_permission(user_id, '!кто админ'):
-        await update.message.reply_text("❌ Нет прав")
-        return
-    
-    # Группируем по рангам
     owners, curators, deputies, managers, moders, customs, helpers = [], [], [], [], [], [], []
     
     conn = sqlite3.connect(DB_PATH)
@@ -81,44 +95,33 @@ async def cmd_who_admin(update, context):
     await update.message.reply_text(response, parse_mode=ParseMode.HTML, reply_to_message_id=update.message.message_id)
 
 async def cmd_info(update, context):
-    """!инфа - информация о пользователе"""
     chat_id = str(update.effective_chat.id)
-    
-    # Поиск пользователя
     user = await resolve_user(update, context, required=False, allow_self=True)
     if not user:
         return
     
-    # Получаем данные
     info = get_user_info(user.id, chat_id)
     name = info[0] if info else user.first_name
     username = info[1] if info else user.username
-    
     custom = get_user_custom_nick(user.id)
     display = custom if custom else name
-    
     clickable = get_clickable_name(user.id, display, username)
     
     rank = get_user_rank_db(user.id)
     rank_name = RANKS.get(rank, {}).get('name', 'Участник')
-    
-    warnings = get_user_warnings_count(user.id, chat_id)
+    warnings = get_warnings_count(user.id, chat_id)
     max_w = int(get_setting('max_warnings', '3'))
-    
     immunity = rank in ['owner', 'curator', 'custom', 'helper_plus']
     
     vacation = get_vacation_info(user.id)
     used_days = vacation[2] if vacation else 0
     limit = int(get_setting('max_vacation_days', '14'))
-    
+    vacation_status = "нет"
     if vacation and datetime.now() <= datetime.fromisoformat(vacation[1]):
         vacation_status = f"до {datetime.fromisoformat(vacation[1]).strftime('%d.%m.%Y')}"
-    else:
-        vacation_status = "нет"
     
     balance = get_user_balance(user.id)
     
-    # Топ-позиции
     top_activity = get_top_user(chat_id, 'count')
     top_punish = get_top_user(chat_id, 'punishments')
     top_balance = get_top_balance(chat_id)
@@ -131,7 +134,6 @@ async def cmd_info(update, context):
     if user.id == top_balance:
         badges.append("💎 ТОП-1 Баланс")
     
-    # Награды
     rewards = get_user_rewards(user.id)
     reward_badges = ['💸 ЗА ДЕНЬГИ ДА' if '10_complaints' in rewards else '']
     reward_badges = [r for r in reward_badges if r]
@@ -164,32 +166,7 @@ async def cmd_info(update, context):
     
     await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
-# Вспомогательные функции для топов
-def get_top_user(chat_id, field):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute(f'SELECT user_id FROM users WHERE chat_id = ? ORDER BY {field} DESC LIMIT 1', (chat_id,))
-    res = cursor.fetchone()
-    conn.close()
-    return res[0] if res else None
-
-def get_top_balance(chat_id):
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    cursor.execute('''
-        SELECT s.user_id FROM salary s
-        JOIN users u ON s.user_id = u.user_id
-        WHERE u.chat_id = ?
-        ORDER BY s.balance DESC LIMIT 1
-    ''', (chat_id,))
-    res = cursor.fetchone()
-    conn.close()
-    return res[0] if res else None
-
 def register(app):
-    app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!кто админ\b'),
-        cmd_who_admin
-    ))
-    app.add_handler(CommandHandler("инфа", cmd_info))
-    app.add_handler(CommandHandler("info", cmd_info))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!кто админ\b'), cmd_who_admin))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!инфа\b'), cmd_info))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!info\b'), cmd_info))

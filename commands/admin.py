@@ -126,7 +126,6 @@ async def cmd_listadmins(update, context):
     
     for i, admin_id in enumerate(admins, 1):
         status = "👑 Владелец" if admin_id == OWNER_ID else "🛡️ Администратор"
-        # Пробуем получить имя
         user_info = get_user_info(admin_id, str(update.effective_chat.id))
         if user_info:
             name, _ = user_info

@@ -7,7 +7,7 @@ from telegram.constants import ParseMode
 from permissions import is_admin
 from database import (
     get_all_chats, add_chat_to_db, remove_chat_from_db,
-    get_chat_stats
+    get_chat_stats, is_moderator_db
 )
 from logger import log_admin_action, log_command
 
@@ -15,7 +15,6 @@ async def cmd_addchat(update, context):
     """Добавить чат для отслеживания /addchat"""
     user_id = update.effective_user.id
     
-    from database import is_moderator_db
     if is_moderator_db(user_id):
         return
     
@@ -54,7 +53,6 @@ async def cmd_removechat(update, context):
     """Удалить чат из отслеживания /removechat"""
     user_id = update.effective_user.id
     
-    from database import is_moderator_db
     if is_moderator_db(user_id):
         return
     
@@ -89,7 +87,6 @@ async def cmd_listchats(update, context):
     """Показать список отслеживаемых чатов /listchats"""
     user_id = update.effective_user.id
     
-    from database import is_moderator_db
     if is_moderator_db(user_id):
         return
     

@@ -2,11 +2,11 @@
 КИКИ И РАЗБАН
 !убрать, !вернуть
 """
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters, CommandHandler
 from telegram.constants import ParseMode
 from database import (
     remove_all_warnings, get_warnings_count, get_kick_topic_id,
-    get_user_info, get_user_rank_db
+    get_user_info
 )
 from permissions import has_permission, get_clickable_name
 from user_resolver import resolve_user
@@ -33,7 +33,6 @@ async def cmd_kick(update, context):
     elif len(context.args) > 1:
         reason = ' '.join(context.args[1:])
     
-    # Проверки
     if user.id in [ANONYMOUS_ADMIN_ID, OWNER_ID] or (user.username == 'GroupAnonymousBot' and user.id not in [1328519402, 7266756475]):
         await update.message.reply_text("❌ Нельзя исключить этого пользователя")
         return
@@ -46,7 +45,6 @@ async def cmd_kick(update, context):
     clickable = get_clickable_name(user.id, user.first_name, user.username)
     
     try:
-        # Проверка, был ли админом
         is_admin_before = False
         try:
             member = await context.bot.get_chat_member(chat_id_int, user.id)
@@ -54,7 +52,6 @@ async def cmd_kick(update, context):
         except:
             pass
         
-        # Баним
         await context.bot.ban_chat_member(
             chat_id=chat_id_int,
             user_id=user.id,
@@ -64,11 +61,9 @@ async def cmd_kick(update, context):
         if is_admin_before:
             reason += " (бывший администратор)"
         
-        # Снимаем выговоры
         admin_name = update.effective_user.full_name
         remove_all_warnings(user.id, chat_id, user_id, admin_name, reason)
         
-        # Отправляем в тему киков
         topic = get_kick_topic_id()
         if topic:
             try:
@@ -193,7 +188,6 @@ async def cmd_unban(update, context):
         
         await update.message.reply_text(error, parse_mode=ParseMode.HTML)
 
-# Функция для вызова из других команд (автоматический кик)
 async def kick_user(update, context, user, reason):
     """Автоматический кик пользователя"""
     chat_id_int = update.effective_chat.id
@@ -248,5 +242,5 @@ async def kick_user(update, context, user, reason):
         )
 
 def register(app):
-    app.add_handler(CommandHandler("убрать", cmd_kick))
-    app.add_handler(CommandHandler("вернуть", cmd_unban))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!убрать\b'), cmd_kick))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!вернуть\b'), cmd_unban))

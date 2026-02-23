@@ -114,9 +114,9 @@ async def cmd_autowarn(update, context):
     else:
         await update.message.reply_text("❌ Неизвестная команда. /autowarn для справки")
 
-# ========== ДОБАВЬ ЭТУ ФУНКЦИЮ СЮДА ==========
+# Функция для обработки авто-варна (вызывается из message_handler)
 async def process_auto_warn(update, context, user_id, has_media, has_text):
-    """Обработка авто-варна (вызывается из message_handler)"""
+    """Обработка авто-варна"""
     from database import (
         get_auto_warn_message, increment_auto_warn_count,
         reset_auto_warn_count, add_warning, get_user_max_warnings,
@@ -127,7 +127,6 @@ async def process_auto_warn(update, context, user_id, has_media, has_text):
     
     chat_id = str(update.effective_chat.id)
     
-    # Информация о пользователе
     info = get_user_info(user_id, chat_id)
     name = info[0] if info else update.effective_user.first_name
     username = info[1] if info else update.effective_user.username
@@ -135,21 +134,17 @@ async def process_auto_warn(update, context, user_id, has_media, has_text):
     custom = get_user_custom_nick(user_id)
     display = custom if custom else name
     
-    # Отправляем предупреждение
     warn_msg = get_auto_warn_message()
     await update.message.reply_text(
         warn_msg,
         reply_to_message_id=update.message.message_id
     )
     
-    # Увеличиваем счётчик
     count = increment_auto_warn_count(user_id, chat_id)
     
-    # Логируем
     from logger import log_auto_warn
     log_auto_warn(user_id, display, has_media, has_text, count)
     
-    # Проверка на 3 варна
     if count >= 3:
         reset_auto_warn_count(user_id, chat_id)
         
@@ -169,7 +164,6 @@ async def process_auto_warn(update, context, user_id, has_media, has_text):
             parse_mode='HTML'
         )
         
-        # Проверка на кик
         if warn_count >= max_w:
             await kick_user(update, context, update.effective_user, "Лимит выговоров")
 

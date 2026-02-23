@@ -18,12 +18,9 @@ from database import (
 from permissions import has_permission, is_admin, get_clickable_name
 from user_resolver import resolve_user
 from constants import OWNER_ID
-from logger import log_admin_action, log_user_action, log_command
-
-# ========== !ник ==========
+from logger import log_admin_action, log_user_action
 
 async def cmd_nick(update, context):
-    """!ник ТЕКСТ - установить кастомный ник"""
     user_id = update.effective_user.id
     
     if not context.args:
@@ -40,29 +37,11 @@ async def cmd_nick(update, context):
         return
     
     set_user_custom_nick(user_id, nick)
-    
-    clickable = get_clickable_name(
-        user_id,
-        update.effective_user.first_name,
-        update.effective_user.username
-    )
-    
-    await update.message.reply_text(
-        f"✅ Ваш ник установлен: {nick}\n👤 Теперь вы: {clickable}",
-        parse_mode=ParseMode.HTML
-    )
-    
-    log_user_action(
-        user_id=user_id,
-        user_name=update.effective_user.full_name,
-        action="Установил ник",
-        details=nick
-    )
-
-# ========== !очистить (ПОЛНОЕ УДАЛЕНИЕ) ==========
+    clickable = get_clickable_name(user_id, update.effective_user.first_name, update.effective_user.username)
+    await update.message.reply_text(f"✅ Ваш ник установлен: {nick}\n👤 Теперь вы: {clickable}", parse_mode=ParseMode.HTML)
+    log_user_action(user_id, update.effective_user.full_name, "Установил ник", nick)
 
 async def cmd_clear_user(update, context):
-    """!очистить - полностью удалить пользователя из системы"""
     user_id = update.effective_user.id
     chat_id = str(update.effective_chat.id)
     
@@ -74,7 +53,6 @@ async def cmd_clear_user(update, context):
     if not user:
         return
     
-    # Счётчики
     removed = {
         'warnings': delete_user_warnings(user.id, chat_id),
         'rank': delete_user_rank(user.id) if user.id != OWNER_ID else False,
@@ -89,7 +67,6 @@ async def cmd_clear_user(update, context):
     }
     
     clickable = get_clickable_name(user.id, user.first_name, user.username)
-    
     response = f"✅ {clickable} полностью очищен:\n\n"
     response += f"• Выговоры: удалено {removed['warnings']}\n"
     response += f"• Ранг: {'сброшен' if removed['rank'] else 'не изменён'}\n"
@@ -98,16 +75,11 @@ async def cmd_clear_user(update, context):
     response += f"• Зарплата: {'сброшена' if removed['salary'] else 'не найдена'}\n"
     response += f"• Юбилеи: {'очищены' if removed['milestones'] else 'не найдены'}\n"
     response += f"• Статистика: удалена из {removed['topics']} тем\n"
-    response += f"• Пользователь: {'удалён' if removed['user'] else 'не найден'}\n"
-    response += f"• Жалобы: {'сброшены' if removed['complaints'] else 'не найдены'}\n"
-    response += f"• Награды: {'удалены' if removed['rewards'] else 'не найдены'}"
+    response += f"• Пользователь: {'удалён' if removed['user'] else 'не найден'}"
     
     await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
-# ========== !adduser (РУЧНОЕ ДОБАВЛЕНИЕ) ==========
-
 async def cmd_adduser(update, context):
-    """!adduser @username [кастомный ник] - добавить пользователя вручную"""
     admin_id = update.effective_user.id
     chat_id = str(update.effective_chat.id)
     
@@ -116,23 +88,16 @@ async def cmd_adduser(update, context):
         return
     
     if not context.args:
-        await update.message.reply_text(
-            "!adduser @username\n!adduser ID\n!adduser @username Кастомный Ник",
-            parse_mode=ParseMode.HTML
-        )
+        await update.message.reply_text("!adduser @username\n!adduser ID\n!adduser @username Ник", parse_mode=ParseMode.HTML)
         return
     
-    # Проверяем чат
     if chat_id not in get_all_chats():
         add_chat_to_db(chat_id)
     
     target = context.args[0]
     custom = ' '.join(context.args[1:]) if len(context.args) > 1 else None
-    
     target_user = None
-    target_id = None
     
-    # Поиск по ID
     try:
         target_id = int(target)
         try:
@@ -142,14 +107,12 @@ async def cmd_adduser(update, context):
         except:
             target_user = User(id=target_id, first_name=custom or f"User {target_id}", is_bot=False)
     except ValueError:
-        # Поиск по @username
         if target.startswith('@'):
             clean = target[1:]
             try:
                 chat = await context.bot.get_chat(f"@{clean}")
                 if chat and not chat.is_bot:
                     target_user = chat
-                    target_id = chat.id
             except:
                 target_user = User(id=0, first_name=custom or clean, is_bot=False, username=clean)
     
@@ -157,14 +120,12 @@ async def cmd_adduser(update, context):
         await update.message.reply_text("❌ Пользователь не найден")
         return
     
-    # Для пользователя с username без ID
     if target_user.id == 0 and target_user.username:
         try:
             admins = await context.bot.get_chat_administrators(update.effective_chat.id)
             for a in admins:
                 if a.user.username and a.user.username.lower() == target_user.username.lower():
                     target_user = a.user
-                    target_id = a.user.id
                     break
         except:
             pass
@@ -173,9 +134,7 @@ async def cmd_adduser(update, context):
         await update.message.reply_text(f"❌ Не удалось получить ID. Используйте ID")
         return
     
-    # Имя для отображения
     display = custom or target_user.full_name or f"User {target_user.id}"
-    
     exists = user_exists_in_chat(target_user.id, chat_id)
     
     if not exists:
@@ -187,15 +146,7 @@ async def cmd_adduser(update, context):
             set_user_custom_nick(target_user.id, custom)
         
         clickable = get_clickable_name(target_user.id, display, target_user.username or '')
-        clickable_admin = get_clickable_name(admin_id, update.effective_user.first_name, update.effective_user.username)
-        
-        log_admin_action(
-            admin_id=admin_id,
-            admin_name=update.effective_user.full_name,
-            action="Ручное добавление",
-            target=f"{target_user.id} (@{target_user.username})",
-            details=f"Имя: {display}"
-        )
+        log_admin_action(admin_id, update.effective_user.full_name, "Ручное добавление", f"{target_user.id} (@{target_user.username})", f"Имя: {display}")
         
         response = f"✅ {clickable} добавлен!\n📝 Имя: {display}\n🆔 <code>{target_user.id}</code>"
         if target_user.username:
@@ -212,6 +163,6 @@ async def cmd_adduser(update, context):
             await update.message.reply_text("ℹ️ Пользователь уже есть в базе")
 
 def register(app):
-    app.add_handler(CommandHandler("ник", cmd_nick))
-    app.add_handler(CommandHandler("очистить", cmd_clear_user))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!ник\b'), cmd_nick))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!очистить\b'), cmd_clear_user))
     app.add_handler(CommandHandler("adduser", cmd_adduser))

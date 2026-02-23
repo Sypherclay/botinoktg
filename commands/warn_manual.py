@@ -2,12 +2,13 @@
 РУЧНЫЕ ВАРНЫ
 !варн, !снять варн, !варнлист
 """
-from telegram.ext import CommandHandler, MessageHandler, filters
+from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
+import sqlite3
 from database import (
     get_auto_warn_count, increment_auto_warn_count, reset_auto_warn_count,
     add_warning, get_warnings_count, get_user_max_warnings,
-    get_auto_warn_message, get_user_rank_db
+    get_auto_warn_message, get_user_rank_db, DB_PATH
 )
 from permissions import has_permission, get_clickable_name
 from user_resolver import resolve_user
@@ -27,24 +28,19 @@ async def cmd_add_warn(update, context):
     if not user:
         return
     
-    # Проверка на анонима
     if user.id == ANONYMOUS_ADMIN_ID:
         await update.message.reply_text("❌ Нельзя выдать варн анонимному администратору")
         return
     
-    # Проверка ранга
     rank = get_user_rank_db(user.id)
     if rank in ['owner', 'curator', 'custom', 'helper_plus']:
         await update.message.reply_text(f"❌ Пользователь не может получить варн")
         return
     
-    # Причина
     reason = ' '.join(context.args[1:]) if len(context.args) > 1 else "Ручной варн"
     
-    # Увеличиваем счётчик варнов
     current_count = increment_auto_warn_count(user.id, chat_id)
     
-    # Отправляем сообщение
     warn_message = get_auto_warn_message()
     admin_name = update.effective_user.full_name
     
@@ -58,7 +54,6 @@ async def cmd_add_warn(update, context):
         chat_id, f"Цель: {user.id}, Всего: {current_count}"
     )
     
-    # Проверка на 3 варна
     if current_count >= 3:
         reset_auto_warn_count(user.id, chat_id)
         
@@ -75,7 +70,6 @@ async def cmd_add_warn(update, context):
             parse_mode=ParseMode.HTML
         )
         
-        # Проверка на кик
         if warning_count >= max_warnings:
             from commands.kick import kick_user
             await kick_user(update, context, user, "3 варна → выговор → лимит")
@@ -123,9 +117,6 @@ async def cmd_warn_list(update, context):
         await update.message.reply_text("❌ Нет прав")
         return
     
-    import sqlite3
-    from database import DB_PATH
-    
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     
@@ -160,15 +151,6 @@ async def cmd_warn_list(update, context):
     await update.message.reply_text(response, parse_mode=ParseMode.HTML)
 
 def register(app):
-    app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!варн\b'),
-        cmd_add_warn
-    ))
-    app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!снять варн\b'),
-        cmd_remove_warn
-    ))
-    app.add_handler(MessageHandler(
-        filters.COMMAND & filters.Regex(r'^!варнлист\b'),
-        cmd_warn_list
-    ))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!варн\b'), cmd_add_warn))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!снять варн\b'), cmd_remove_warn))
+    app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!варнлист\b'), cmd_warn_list))
