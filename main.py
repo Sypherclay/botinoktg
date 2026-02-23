@@ -1,76 +1,89 @@
 #!/usr/bin/env python3
 """
-ГЛАВНЫЙ ФАЙЛ БОТА - ИСПРАВЛЕННАЯ ВЕРСИЯ
+ГЛАВНЫЙ ФАЙЛ БОТА - РАДИКАЛЬНАЯ ВЕРСИЯ
 """
-import logging
 import os
-import sys
 from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
 from config import BOT_TOKEN
 from commands import register_all_commands
-from handlers.message_handler import handle_message
 from keyboards.callback_handler import handle_callback_query
 from database import init_database
-from logger import setup_logger, log_bot_event
+from logger import setup_logger
 from user_resolver import set_owner_id
 from config import OWNER_ID
 
+# Простая функция для отладки
+async def debug_all_messages(update, context):
+    """Ловит ВСЕ сообщения для отладки"""
+    if update.message:
+        text = update.message.text or "[медиа]"
+        print(f"\n📨 ВСЕ СООБЩЕНИЯ: {text}")
+        print(f"   Это команда? {update.message.text and update.message.text.startswith(('!', '/'))}")
+
+async def handle_non_command(update, context):
+    """Обработка НЕ-команд"""
+    if update.message and update.message.text:
+        if update.message.text.startswith(('!', '/')):
+            # Это команда - игнорируем, она будет обработана отдельно
+            return
+    print(f"📝 Не-команда: {update.message.text if update.message else 'без текста'}")
+
 def setup_jobs(app):
-    """Настройка периодических задач"""
     try:
         from handlers.jobs import setup_all_jobs
         setup_all_jobs(app)
     except Exception as e:
-        print(f"⚠️ Ошибка настройки задач: {e}")
+        print(f"⚠️ Ошибка задач: {e}")
 
 def main():
     print("\n" + "="*50)
-    print("🚀 ЗАПУСК БОТА")
+    print("🚀 ЗАПУСК БОТА (ДИАГНОСТИКА)")
     print("="*50)
     
-    # Создаём папки
     os.makedirs("backups", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     
-    # Настройка логирования
     setup_logger('bot')
-    
-    # База данных
-    print("📦 Инициализация БД...")
     init_database()
-    
-    # Устанавливаем ID владельца
     set_owner_id(OWNER_ID)
     
-    # Создание приложения
     print("🔌 Подключение к Telegram...")
     app = Application.builder().token(BOT_TOKEN).build()
     
-    print("\n📦 ЗАГРУЗКА КОМАНД ИЗ ПАПКИ commands/:")
-    # Автоматическая регистрация всех команд
+    # 1. ДЕБАГГЕР - ловит ВСЁ (самый первый)
+    app.add_handler(MessageHandler(filters.ALL, debug_all_messages), group=-1)
+    
+    # 2. ТЕСТОВАЯ КОМАНДА (самая простая)
+    async def test_cmd(update, context):
+        print("✅ ТЕСТОВАЯ КОМАНДА СРАБОТАЛА!")
+        await update.message.reply_text("✅ Работает!")
+    
+    app.add_handler(CommandHandler("test", test_cmd))
+    app.add_handler(MessageHandler(
+        filters.COMMAND & filters.Regex(r'^!тест\b'), 
+        test_cmd
+    ))
+    
+    # 3. ВСЕ ОСТАЛЬНЫЕ КОМАНДЫ ИЗ ПАПКИ
+    print("\n📦 Загрузка команд...")
     register_all_commands(app)
     
-    print("\n➕ Добавление системных обработчиков...")
-    # Callback обработчик
+    # 4. Callback обработчик
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     
-    # ⚠️ ВАЖНО: обработчик команд ДОЛЖЕН быть ДО обработчика сообщений
-    # Но команды уже зарегистрированы через register_all_commands
+    # 5. Обработчик НЕ-команд (только если это не команда)
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND, 
+        handle_non_command
+    ))
     
-    # Обработчик обычных сообщений (НЕ КОМАНД)
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    # Дополнительно обрабатываем сообщения без текста (медиа)
-    app.add_handler(MessageHandler(filters.ALL & ~filters.TEXT & ~filters.COMMAND, handle_message))
-    
-    # Периодические задачи
-    print("⏰ Настройка периодических задач...")
+    print("\n⏰ Настройка задач...")
     setup_jobs(app)
     
     print("\n" + "="*50)
-    print("✅ БОТ ГОТОВ К РАБОТЕ!")
+    print("✅ БОТ ГОТОВ!")
     print("="*50 + "\n")
     
-    # Запуск
     app.run_polling()
 
 if __name__ == '__main__':
@@ -78,7 +91,3 @@ if __name__ == '__main__':
         main()
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
-    except Exception as e:
-        print(f"\n❌ Критическая ошибка: {e}")
-        import traceback
-        traceback.print_exc()
