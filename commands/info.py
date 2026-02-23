@@ -1,6 +1,6 @@
 """
 ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЯХ - ИСПРАВЛЕННАЯ ВЕРСИЯ
-!инфа, !кто админ - с поддержкой @user
+!инфа, !кто админ - работает во всех темах
 """
 from datetime import datetime
 from telegram.ext import MessageHandler, filters
@@ -17,7 +17,7 @@ from permissions import get_clickable_name
 from user_resolver import resolve_user
 from constants import RANKS
 
-print("✅ info.py загружен!")
+print("✅ info.py загружен (работает во всех темах)!")
 
 def get_top_user(chat_id, field):
     try:
@@ -53,8 +53,12 @@ async def cmd_who_admin(update, context):
     print("\n🔥 ВЫПОЛНЕНИЕ !кто админ")
     
     try:
+        # Эта команда не зависит от темы,所以她 должна работать везде
         user_id = update.effective_user.id
         chat_id = str(update.effective_chat.id)
+        
+        print(f"   user_id: {user_id}")
+        print(f"   chat_id: {chat_id}")
         
         owners, curators, deputies, managers, moders, customs, helpers = [], [], [], [], [], [], []
         
@@ -116,17 +120,26 @@ async def cmd_who_admin(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_info(update, context):
-    """Команда !инфа - информация о пользователе (с поддержкой @user)"""
+    """Команда !инфа - информация о пользователе (работает во всех темах)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !инфа")
-    print(f"   Текст: {update.message.text}")
     
     try:
         chat_id = str(update.effective_chat.id)
+        topic_id = "0"
+        
+        # Получаем ID темы, если команда вызвана в теме
+        if hasattr(update.message, 'message_thread_id') and update.message.message_thread_id:
+            topic_id = str(update.message.message_thread_id)
+        
+        print(f"   Текст: {update.message.text}")
         print(f"   chat_id: {chat_id}")
+        print(f"   topic_id: {topic_id}")
         
         # Определяем, нужно ли искать другого пользователя
         message_text = update.message.text
         parts = message_text.split()
+        
+        user = None
         
         # Если есть аргументы или это ответ на сообщение
         if len(parts) > 1 or update.message.reply_to_message:
@@ -146,7 +159,7 @@ async def cmd_info(update, context):
         
         print(f"✅ user: ID={user.id}, имя={user.first_name}")
         
-        # Получаем информацию о пользователе
+        # Получаем информацию о пользователе (не зависит от темы!)
         info = get_user_info(user.id, chat_id)
         
         if info and isinstance(info, tuple) and len(info) >= 2:
@@ -162,6 +175,8 @@ async def cmd_info(update, context):
         
         rank = get_user_rank_db(user.id)
         rank_name = RANKS.get(rank, {}).get('name', 'Участник')
+        
+        # Количество выговоров не зависит от темы!
         warnings = get_warnings_count(user.id, chat_id)
         max_w = int(get_setting('max_warnings', '3'))
         immunity = rank in ['owner', 'curator', 'custom', 'helper_plus']
@@ -181,6 +196,7 @@ async def cmd_info(update, context):
         
         balance = get_user_balance(user.id)
         
+        # Формируем ответ (не зависит от темы)
         response = f"👤 <b>Пользователь:</b> {clickable}\n"
         response += f"🎖️ <b>Должность:</b> {rank_name}\n\n"
         
@@ -200,6 +216,11 @@ async def cmd_info(update, context):
         if user.username:
             response += f"\n🌐 <b>Username:</b> @{user.username}"
         
+        # Добавляем информацию о теме (для диагностики)
+        if topic_id != "0":
+            response += f"\n\n📌 <i>Команда выполнена в теме {topic_id}</i>"
+        
+        print(f"📤 Отправка ответа (длина: {len(response)})")
         await update.message.reply_text(response, parse_mode=ParseMode.HTML)
         print("✅ !инфа выполнена")
         
@@ -211,6 +232,6 @@ async def cmd_info(update, context):
 def register(app):
     print("📝 Регистрация команд info.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!кто админ$'), cmd_who_admin))
-    app.add_handler(MessageHandler(filters.Regex(r'^!инфа\b'), cmd_info))  # \b чтобы ловило и !инфа и !инфа @user
+    app.add_handler(MessageHandler(filters.Regex(r'^!инфа\b'), cmd_info))
     app.add_handler(MessageHandler(filters.Regex(r'^!info\b'), cmd_info))
     print("✅ info.py зарегистрирован")
