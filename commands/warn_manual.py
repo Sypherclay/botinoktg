@@ -2,7 +2,7 @@
 РУЧНЫЕ ВАРНЫ - ПОЛНАЯ ВЕРСИЯ
 !варн - только для Куратор+ (выдать варн)
 !снять варн - только для Куратор+ (снять последний варн)
-!варн лист - только для Руководитель+ (список всех)
+!варн лист - только для Руководитель+ (список всех) - НЕ ИЩЕТ ПОЛЬЗОВАТЕЛЯ!
 """
 from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
@@ -236,6 +236,7 @@ async def cmd_warn_list(update, context):
         chat_id = str(update.effective_chat.id)
         
         print(f"   user_id: {user_id}")
+        print(f"   Текст команды: {update.message.text}")
         
         # ✅ ПРОВЕРКА: только для Руководитель и выше (владелец может всё)
         if not has_rank(user_id, 'manager'):
@@ -316,8 +317,12 @@ async def cmd_warn_list(update, context):
 
 def register(app):
     print("📝 Регистрация команд warn_manual.py...")
+    
+    # ⚠️ ВАЖНО: СНАЧАЛА регистрируем !варн лист (более специфичная команда)
+    app.add_handler(MessageHandler(filters.Regex(r'^!варн лист\b'), cmd_warn_list))
+    
+    # ПОТОМ регистрируем !варн (общая команда)
     app.add_handler(MessageHandler(filters.Regex(r'^!варн\b'), cmd_add_warn))
     app.add_handler(MessageHandler(filters.Regex(r'^!снять варн\b'), cmd_remove_warn))
-    # ⚠️ ВАЖНО: именно "!варн лист" с пробелом!
-    app.add_handler(MessageHandler(filters.Regex(r'^!варн лист\b'), cmd_warn_list))
+    
     print("✅ warn_manual.py зарегистрирован")
