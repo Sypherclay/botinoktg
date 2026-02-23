@@ -17,7 +17,7 @@ from database import (
 from logger import log_auto_warn
 from commands.autowarn import process_auto_warn
 
-# ========== ФУНКЦИЯ ПРЯМО ЗДЕСЬ (без импорта из utils) ==========
+# ========== ФУНКЦИЯ ПРЯМО ЗДЕСЬ ==========
 def check_milestones(user_id, chat_id, topic_id, message_count):
     """Проверка достижения юбилейных отметок"""
     try:
@@ -57,6 +57,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return
     
+    print(f"\n🔥 ПОЛУЧЕНО СООБЩЕНИЕ: {update.message.text}")
+    
     # ========== НОВЫЕ УЧАСТНИКИ ==========
     if update.message.new_chat_members:
         from commands.welcome import handle_new_member
@@ -67,13 +69,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.left_chat_member:
         left = update.message.left_chat_member
         if not left.is_bot:
-            # Функция handle_auto_leave должна быть в kick.py
-            try:
-                from commands.kick import handle_auto_leave
-                await handle_auto_leave(update, context, left)
-            except ImportError:
-                # Если функции нет - просто логируем
-                print(f"Пользователь {left.id} покинул чат")
+            print(f"Пользователь {left.id} покинул чат")
         return
     
     # ========== ОСНОВНАЯ СТАТИСТИКА ==========
@@ -100,10 +96,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_media = has_photo or has_video or has_document or has_audio or has_voice or has_sticker or has_animation
     has_text = bool(update.message.text or update.message.caption)
     
+    print(f"📊 has_media={has_media}, has_text={has_text}")
+    
     # Альбомы
     is_first = True
     if update.message.media_group_id:
         is_first = is_first_in_album(update.message.media_group_id)
+        print(f"🖼️ Альбом: {'первое' if is_first else 'не первое'}")
     
     # Периодическая очистка
     if random.randint(1, 100) == 1:
@@ -111,20 +110,18 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Проверка авто-варн темы
     is_auto_topic = is_auto_warn_enabled(topic_id)
+    print(f"   Тема в списке авто-варнов: {is_auto_topic}")
     
     # ========== АВТО-ВАРНЫ ==========
     if is_first and is_auto_topic and not is_whitelisted(user_id):
-        # Только текст = варн
         if has_text and not has_media:
+            print("⚠️ Только текст - даём варн")
             await process_auto_warn(update, context, user_id, True, True)
-        
-        # Только медиа = варн
         elif not has_text and has_media:
+            print("⚠️ Только медиа - даём варн")
             await process_auto_warn(update, context, user_id, True, False)
-        
-        # Текст+медиа = ОК (ничего не делаем)
         elif has_text and has_media:
-            pass
+            print("✅ Текст+медиа - ОК")
     
     # ========== СОХРАНЕНИЕ В БД ==========
     if is_first:
@@ -147,16 +144,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # Статистика темы
         update_topic_stats(chat_id, topic_id, user_id)
         
-        # ========== НАКАЗАНИЯ И ЗАРПЛАТА ==========
-        if is_auto_topic and has_media and has_text:
-            # Уже учтено в update_user_stats
-            pass
-        
         # ========== ЮБИЛЕИ ==========
         count = get_user_topic_count(chat_id, topic_id, user_id)
         msg = check_milestones(user_id, chat_id, topic_id, count)
         
         if msg:
+            print(f"🏆 Юбилей: {msg}")
             await update.message.reply_text(
                 msg,
                 reply_to_message_id=update.message.message_id
@@ -164,61 +157,5 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         # ========== АКТИВНОСТЬ ==========
         update_user_activity(user_id, chat_id)
-
-# Функция для обработки авто-варнов (вызывается из autowarn.py)
-async def process_auto_warn(update, context, user_id, has_media, has_text):
-    """Обработка авто-варна"""
-    from database import (
-        get_auto_warn_message, increment_auto_warn_count,
-        reset_auto_warn_count, add_warning, get_user_max_warnings,
-        get_user_info, get_user_custom_nick
-    )
-    from permissions import get_clickable_name
-    from commands.kick import kick_user
     
-    chat_id = str(update.effective_chat.id)
-    
-    # Информация о пользователе
-    info = get_user_info(user_id, chat_id)
-    name = info[0] if info else update.effective_user.first_name
-    username = info[1] if info else update.effective_user.username
-    
-    custom = get_user_custom_nick(user_id)
-    display = custom if custom else name
-    
-    # Отправляем предупреждение
-    warn_msg = get_auto_warn_message()
-    await update.message.reply_text(
-        warn_msg,
-        reply_to_message_id=update.message.message_id
-    )
-    
-    # Увеличиваем счётчик
-    count = increment_auto_warn_count(user_id, chat_id)
-    
-    # Логируем
-    log_auto_warn(user_id, display, has_media, has_text, count)
-    
-    # Проверка на 3 варна
-    if count >= 3:
-        reset_auto_warn_count(user_id, chat_id)
-        
-        warn_count = add_warning(
-            user_id, chat_id,
-            "Некорректная подача отчетности",
-            0, "Авто-система"
-        )
-        
-        max_w = get_user_max_warnings(user_id)
-        
-        clickable = get_clickable_name(user_id, display, username)
-        
-        await update.message.reply_text(
-            f"⚠️ {clickable} получает автоматический выговор\n"
-            f"📊 Выговоров: {warn_count}/{max_w}",
-            parse_mode='HTML'
-        )
-        
-        # Проверка на кик
-        if warn_count >= max_w:
-            await kick_user(update, context, update.effective_user, "Лимит выговоров")
+    print("💾 Данные сохранены в БД\n")
