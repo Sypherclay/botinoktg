@@ -12,7 +12,7 @@ from database import (
 from permissions import get_clickable_name
 
 async def cmd_complaint(update, context):
-    """!жалоба [текст] - пожаловаться на наказание (ответом)"""
+    """!жалоба [текст] - пожаловаться на сообщение (ответом)"""
     
     if not update.message.reply_to_message:
         await update.message.reply_text("❌ Ответьте на сообщение с наказанием")
