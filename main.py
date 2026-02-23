@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ГЛАВНЫЙ ФАЙЛ БОТА - ДИАГНОСТИЧЕСКАЯ ВЕРСИЯ
+ГЛАВНЫЙ ФАЙЛ БОТА - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 import logging
 import os
@@ -14,12 +14,6 @@ from database import init_database
 from logger import setup_logger, log_bot_event
 from user_resolver import set_owner_id
 from config import OWNER_ID
-
-# Простейшая команда для теста
-async def test_command(update, context):
-    """Тестовая команда /test"""
-    print("✅ ТЕСТОВАЯ КОМАНДА /test ВЫПОЛНЕНА!")
-    await update.message.reply_text("✅ /test работает!")
 
 def setup_jobs(app):
     """Настройка периодических задач"""
@@ -52,37 +46,21 @@ def main():
     print("🔌 Подключение к Telegram...")
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # ТЕСТОВАЯ КОМАНДА (всегда работает)
-    print("➕ Добавление тестовой команды /test")
-    app.add_handler(CommandHandler("test", test_command))
-    
-    # Проверка доступности модулей
-    print("\n🔍 ПРОВЕРКА МОДУЛЕЙ:")
-    try:
-        import commands
-        print(f"  ✅ commands импортирован")
-        
-        # Проверим первый попавшийся файл
-        for cmd in ['test', 'warn', 'info']:
-            try:
-                module = __import__(f'commands.{cmd}', fromlist=['register'])
-                if hasattr(module, 'register'):
-                    print(f"  ✅ commands.{cmd}.register существует")
-                else:
-                    print(f"  ❌ commands.{cmd}.register НЕ существует")
-            except Exception as e:
-                print(f"  ❌ commands.{cmd}: {e}")
-    except Exception as e:
-        print(f"  ❌ Ошибка: {e}")
-    
     print("\n📦 ЗАГРУЗКА КОМАНД ИЗ ПАПКИ commands/:")
     # Автоматическая регистрация всех команд
     register_all_commands(app)
     
-    # Системные обработчики
     print("\n➕ Добавление системных обработчиков...")
+    # Callback обработчик
     app.add_handler(CallbackQueryHandler(handle_callback_query))
-    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    
+    # ⚠️ ВАЖНО: обработчик команд ДОЛЖЕН быть ДО обработчика сообщений
+    # Но команды уже зарегистрированы через register_all_commands
+    
+    # Обработчик обычных сообщений (НЕ КОМАНД)
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    # Дополнительно обрабатываем сообщения без текста (медиа)
+    app.add_handler(MessageHandler(filters.ALL & ~filters.TEXT & ~filters.COMMAND, handle_message))
     
     # Периодические задачи
     print("⏰ Настройка периодических задач...")
