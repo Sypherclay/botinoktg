@@ -5,7 +5,7 @@
 from telegram.ext import CommandHandler
 from telegram.constants import ParseMode
 import traceback
-from permissions import is_owner, is_admin
+from permissions import is_owner, is_admin, get_clickable_name  # ← ДОБАВЛЕН ИМПОРТ!
 from database import get_all_admins, add_admin_db, remove_admin_db, get_user_info, get_kick_topic_id, set_kick_topic_id
 from user_resolver import resolve_user
 from logger import log_admin_action, log_command
@@ -172,10 +172,10 @@ async def cmd_setkicktopic(update, context):
             
             admin_name = update.effective_user.full_name
             
-            clickable_admin = get_clickable_name(
-                update.effective_user.id,
-                update.effective_user.first_name,
-                update.effective_user.username
+            # УБИРАЕМ get_clickable_name если он не нужен
+            await update.message.reply_text(
+                f"✅ Тема для сообщений о киках установлена: <code>{topic_id}</code>",
+                parse_mode=ParseMode.HTML
             )
             
             log_admin_action(
@@ -183,11 +183,6 @@ async def cmd_setkicktopic(update, context):
                 admin_name=admin_name,
                 action="Установил тему для киков",
                 details=f"Тема ID: {topic_id}"
-            )
-            
-            await update.message.reply_text(
-                f"✅ {clickable_admin} установил тему для сообщений о киках: <code>{topic_id}</code>",
-                parse_mode=ParseMode.HTML
             )
         except ValueError:
             await update.message.reply_text("❌ ID темы должен быть числом")
@@ -213,22 +208,9 @@ async def cmd_resetkicktopic(update, context):
         
         admin_name = update.effective_user.full_name
         
-        clickable_admin = get_clickable_name(
-            update.effective_user.id,
-            update.effective_user.first_name,
-            update.effective_user.username
-        )
-        
-        log_admin_action(
-            admin_id=update.effective_user.id,
-            admin_name=admin_name,
-            action="Сбросил тему для киков",
-            details=f"Была установлена тема: {current_topic if current_topic else 'не установлена'}"
-        )
-        
         if current_topic:
             await update.message.reply_text(
-                f"✅ {clickable_admin} сбросил тему для киков: <code>{current_topic}</code>",
+                f"✅ Тема для киков сброшена: <code>{current_topic}</code>",
                 parse_mode=ParseMode.HTML
             )
         else:
@@ -236,6 +218,13 @@ async def cmd_resetkicktopic(update, context):
                 "ℹ️ Тема для киков и так не была установлена.",
                 parse_mode=ParseMode.HTML
             )
+        
+        log_admin_action(
+            admin_id=update.effective_user.id,
+            admin_name=admin_name,
+            action="Сбросил тему для киков",
+            details=f"Была установлена тема: {current_topic if current_topic else 'не установлена'}"
+        )
             
     except Exception as e:
         print(f"❌ Ошибка: {e}")
