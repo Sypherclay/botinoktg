@@ -1,8 +1,8 @@
 """
 РУЧНЫЕ ВАРНЫ - ПОЛНАЯ ВЕРСИЯ
-!варн [причина] - выдать варн (поддерживает @user, reply, причину на след. строке)
-!снять варн - снять ПОСЛЕДНИЙ варн (поддерживает @user и reply)
-!варнлист - список всех пользователей с варнами и причинами
+!варн - только для Куратор+ (выдать варн)
+!снять варн - только для Куратор+ (снять последний варн)
+!варн лист - только для Руководитель+ (список всех)
 """
 from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
@@ -11,15 +11,38 @@ from database import (
     add_warning_v2, get_user_warns_with_reasons, get_all_users_with_warns,
     remove_last_warn, get_user_rank_db, get_user_info
 )
-from permissions import has_permission, get_clickable_name
+from permissions import has_permission, get_clickable_name, get_user_rank
 from user_resolver import resolve_user
 from constants import RANKS, ANONYMOUS_ADMIN_ID
 from logger import log_command
 
-print("✅ warn_manual.py загружен (полная версия)!")
+print("✅ warn_manual.py загружен (полная версия с рангами)!")
+
+# ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ РАНГА ==========
+def has_rank(user_id, required_rank):
+    """Проверяет, имеет ли пользователь требуемый ранг или выше"""
+    user_rank = get_user_rank_db(user_id)
+    
+    # Список рангов по возрастанию
+    rank_levels = {
+        'user': 0,
+        'helper': 1,
+        'helper_plus': 2,
+        'custom': 3,
+        'moder': 4,
+        'manager': 5,
+        'deputy_curator': 6,
+        'curator': 7,
+        'owner': 8
+    }
+    
+    user_level = rank_levels.get(user_rank, 0)
+    required_level = rank_levels.get(required_rank, 0)
+    
+    return user_level >= required_level
 
 async def cmd_add_warn(update, context):
-    """!варн [причина] - выдать ручной варн"""
+    """!варн [причина] - выдать ручной варн (только для Куратор+)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !варн")
     
     try:
@@ -28,8 +51,16 @@ async def cmd_add_warn(update, context):
         
         print(f"   admin_id: {user_id}")
         
-        if not has_permission(user_id, '!варн'):
-            await update.message.reply_text("❌ Нет прав")
+        # ✅ ПРОВЕРКА: только для Куратор и выше
+        if not has_rank(user_id, 'curator'):
+            user_rank = get_user_rank_db(user_id)
+            rank_name = RANKS.get(user_rank, {}).get('name', 'Участник')
+            await update.message.reply_text(
+                f"❌ У вас нет прав для этой команды.\n"
+                f"Требуется ранг: Куратор или выше\n"
+                f"Ваш ранг: {rank_name}",
+                parse_mode=ParseMode.HTML
+            )
             return
         
         # Получаем полный текст сообщения
@@ -69,10 +100,11 @@ async def cmd_add_warn(update, context):
             await update.message.reply_text("❌ Нельзя выдать варн анонимному администратору")
             return
         
-        # Проверка ранга
-        rank = get_user_rank_db(user.id)
-        if rank in ['owner', 'curator', 'custom', 'helper_plus']:
-            await update.message.reply_text(f"❌ Пользователь не может получить варн")
+        # Проверка ранга цели (нельзя выдавать варны кураторам и выше)
+        target_rank = get_user_rank_db(user.id)
+        if target_rank in ['curator', 'owner', 'deputy_curator']:
+            rank_name = RANKS.get(target_rank, {}).get('name', '')
+            await update.message.reply_text(f"❌ Нельзя выдать варн пользователю с рангом '{rank_name}'")
             return
         
         # Добавляем варн с причиной
@@ -109,7 +141,7 @@ async def cmd_add_warn(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_remove_warn(update, context):
-    """!снять варн - снять ПОСЛЕДНИЙ варн"""
+    """!снять варн - снять ПОСЛЕДНИЙ варн (только для Куратор+)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !снять варн")
     
     try:
@@ -118,8 +150,16 @@ async def cmd_remove_warn(update, context):
         
         print(f"   admin_id: {user_id}")
         
-        if not has_permission(user_id, '!снять варн'):
-            await update.message.reply_text("❌ Нет прав")
+        # ✅ ПРОВЕРКА: только для Куратор и выше
+        if not has_rank(user_id, 'curator'):
+            user_rank = get_user_rank_db(user_id)
+            rank_name = RANKS.get(user_rank, {}).get('name', 'Участник')
+            await update.message.reply_text(
+                f"❌ У вас нет прав для этой команды.\n"
+                f"Требуется ранг: Куратор или выше\n"
+                f"Ваш ранг: {rank_name}",
+                parse_mode=ParseMode.HTML
+            )
             return
         
         # Получаем текст сообщения
@@ -181,8 +221,8 @@ async def cmd_remove_warn(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_warn_list(update, context):
-    """!варнлист - список всех пользователей с варнами и причинами"""
-    print("\n🔥 ВЫПОЛНЕНИЕ !варнлист")
+    """!варн лист - список всех пользователей с варнами (только для Руководитель+)"""
+    print("\n🔥 ВЫПОЛНЕНИЕ !варн лист")
     
     try:
         user_id = update.effective_user.id
@@ -190,9 +230,19 @@ async def cmd_warn_list(update, context):
         
         print(f"   user_id: {user_id}")
         
-        if not has_permission(user_id, '!варнлист'):
-            await update.message.reply_text("❌ Нет прав")
+        # ✅ ПРОВЕРКА: только для Руководитель и выше
+        if not has_rank(user_id, 'manager'):
+            user_rank = get_user_rank_db(user_id)
+            rank_name = RANKS.get(user_rank, {}).get('name', 'Участник')
+            await update.message.reply_text(
+                f"❌ У вас нет прав для этой команды.\n"
+                f"Требуется ранг: Руководитель или выше\n"
+                f"Ваш ранг: {rank_name}",
+                parse_mode=ParseMode.HTML
+            )
             return
+        
+        print(f"   ✅ Права есть: ранг {get_user_rank_db(user_id)}")
         
         # Получаем всех пользователей с варнами
         users_with_warns = get_all_users_with_warns(chat_id)
@@ -242,8 +292,11 @@ async def cmd_warn_list(update, context):
         # Если ответ слишком длинный, разбиваем на части
         if len(response) > 4000:
             parts = [response[i:i+4000] for i in range(0, len(response), 4000)]
-            for part in parts:
-                await update.message.reply_text(part, parse_mode=ParseMode.HTML)
+            for i, part in enumerate(parts, 1):
+                if i == 1:
+                    await update.message.reply_text(part, parse_mode=ParseMode.HTML)
+                else:
+                    await update.message.reply_text(part, parse_mode=ParseMode.HTML)
         else:
             await update.message.reply_text(response, parse_mode=ParseMode.HTML)
         
@@ -258,5 +311,6 @@ def register(app):
     print("📝 Регистрация команд warn_manual.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!варн\b'), cmd_add_warn))
     app.add_handler(MessageHandler(filters.Regex(r'^!снять варн\b'), cmd_remove_warn))
-    app.add_handler(MessageHandler(filters.Regex(r'^!варнлист\b'), cmd_warn_list))
+    # ⚠️ ВАЖНО: именно "!варн лист" с пробелом!
+    app.add_handler(MessageHandler(filters.Regex(r'^!варн лист\b'), cmd_warn_list))
     print("✅ warn_manual.py зарегистрирован")
