@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-ГЛАВНЫЙ ФАЙЛ БОТА - МИНИМАЛЬНАЯ ВЕРСИЯ
+ГЛАВНЫЙ ФАЙЛ БОТА - ИСПРАВЛЕННЫЙ ПОРЯДОК
 """
 import os
 from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
@@ -12,20 +12,24 @@ from logger import setup_logger
 from user_resolver import set_owner_id
 from config import OWNER_ID
 
-# Простой дебаггер
+# Прямые тестовые команды (для проверки)
+async def test_direct(update, context):
+    print("🔥🔥🔥 ПРЯМАЯ КОМАНДА СРАБОТАЛА! 🔥🔥🔥")
+    await update.message.reply_text("✅ Прямая команда работает!")
+
+async def test_direct_slash(update, context):
+    print("🔥🔥🔥 ПРЯМАЯ КОМАНДА /testdirect СРАБОТАЛА! 🔥🔥🔥")
+    await update.message.reply_text("✅ /testdirect работает!")
+
+# Дебаггер (будет последним)
 async def debug_all(update, context):
     if update.message:
         print(f"\n📨 СООБЩЕНИЕ: {update.message.text}")
         print(f"   Это команда? {update.message.text and update.message.text.startswith(('!', '/'))}")
 
-# Простая тестовая команда прямо здесь
-async def test_direct(update, context):
-    print("🔥🔥🔥 ПРЯМАЯ КОМАНДА СРАБОТАЛА! 🔥🔥🔥")
-    await update.message.reply_text("✅ Прямая команда работает!")
-
 def main():
     print("\n" + "="*50)
-    print("🚀 МИНИМАЛЬНЫЙ ТЕСТ")
+    print("🚀 ИСПРАВЛЕННЫЙ ПОРЯДОК")
     print("="*50)
     
     os.makedirs("backups", exist_ok=True)
@@ -37,23 +41,26 @@ def main():
     
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # 1. ПРЯМАЯ ТЕСТОВАЯ КОМАНДА (самый высокий приоритет)
-    print("➕ Добавление прямой тестовой команды")
-    app.add_handler(CommandHandler("testdirect", test_direct))
+    # ===== ВАЖНО: ПРАВИЛЬНЫЙ ПОРЯДОК =====
+    # 1. СНАЧАЛА команды с самым высоким приоритетом
+    print("\n➕ 1. Регистрация прямых команд...")
+    app.add_handler(CommandHandler("testdirect", test_direct_slash))
     app.add_handler(MessageHandler(
         filters.COMMAND & filters.Regex(r'^!прямая\b'), 
         test_direct
     ))
     
-    # 2. Дебаггер (видит всё)
-    app.add_handler(MessageHandler(filters.ALL, debug_all), group=-1)
-    
-    # 3. Все команды из папки
-    print("\n📦 Загрузка команд из папки...")
+    # 2. ПОТОМ все команды из папки commands/
+    print("\n📦 2. Загрузка команд из папки commands/...")
     register_all_commands(app)
     
-    # 4. Callback обработчик
+    # 3. ПОТОМ callback обработчик
+    print("\n🔘 3. Регистрация callback обработчика...")
     app.add_handler(CallbackQueryHandler(handle_callback_query))
+    
+    # 4. В САМОМ КОНЦЕ - дебаггер (самый низкий приоритет)
+    print("\n🔍 4. Регистрация дебаггера...")
+    app.add_handler(MessageHandler(filters.ALL, debug_all), group=-1)
     
     print("\n" + "="*50)
     print("✅ БОТ ГОТОВ!")
