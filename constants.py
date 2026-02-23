@@ -2,6 +2,7 @@
 КОНСТАНТЫ БОТА
 Все ID и настройки в одном месте
 """
+from config import OWNER_ID
 
 # Специальные ID
 ANONYMOUS_ADMIN_ID = 1087968824
