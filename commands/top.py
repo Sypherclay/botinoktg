@@ -9,7 +9,7 @@ import traceback
 from database import DB_PATH
 from permissions import get_clickable_name
 
-print("✅ top.py загружен!")
+print("✅ top.py загруден!")
 
 async def cmd_top(update, context):
     """!топ [баланс/наказания/актив]"""
@@ -18,9 +18,16 @@ async def cmd_top(update, context):
     try:
         chat_id = str(update.effective_chat.id)
         print(f"   chat_id: {chat_id}")
-        print(f"   аргументы: {context.args}")
         
-        if not context.args:
+        # ✅ Получаем текст сообщения и разбиваем на части
+        message_text = update.message.text
+        print(f"   текст: {message_text}")
+        
+        parts = message_text.split()
+        print(f"   части: {parts}")
+        
+        # Если есть только команда без аргументов
+        if len(parts) == 1:
             await update.message.reply_text(
                 "❌ Используйте:\n"
                 "• !топ баланс\n"
@@ -30,7 +37,8 @@ async def cmd_top(update, context):
             )
             return
         
-        sub = context.args[0].lower()
+        # Получаем подкоманду (второе слово)
+        sub = parts[1].lower()
         print(f"   подкоманда: {sub}")
         
         if sub == 'баланс':
@@ -40,7 +48,10 @@ async def cmd_top(update, context):
         elif sub == 'актив':
             await top_activity(update, chat_id)
         else:
-            await update.message.reply_text(f"❌ Неизвестная подкоманда: {sub}")
+            await update.message.reply_text(
+                f"❌ Неизвестная подкоманда: {sub}\n"
+                f"Используйте: баланс, наказания, актив"
+            )
             
     except Exception as e:
         print(f"❌ Ошибка в cmd_top: {e}")
@@ -167,5 +178,6 @@ async def top_activity(update, chat_id):
 
 def register(app):
     print("📝 Регистрация команд top.py...")
+    # Регистрируем на все команды, начинающиеся с !топ
     app.add_handler(MessageHandler(filters.Regex(r'^!топ\b'), cmd_top))
     print("✅ top.py зарегистрирован")
