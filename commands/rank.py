@@ -136,12 +136,12 @@ async def cmd_demote(update, context):
 
 def register(app):
     # Все команды рангов
-    app.add_handler(CommandHandler("хелпер", lambda u,c: handle_rank_command(u,c,'helper')))
-    app.add_handler(CommandHandler("модер", lambda u,c: handle_rank_command(u,c,'moder')))
-    app.add_handler(CommandHandler("руководитель", lambda u,c: handle_rank_command(u,c,'manager')))
-    app.add_handler(CommandHandler("зам", lambda u,c: handle_rank_command(u,c,'deputy_curator')))
-    app.add_handler(CommandHandler("куратор", lambda u,c: handle_rank_command(u,c,'curator')))
-    app.add_handler(CommandHandler("владелец", lambda u,c: handle_rank_command(u,c,'owner')))
-    app.add_handler(CommandHandler("кастом", lambda u,c: handle_rank_command(u,c,'custom')))
-    app.add_handler(CommandHandler("хелпер+", lambda u,c: handle_rank_command(u,c,'helper_plus')))
-    app.add_handler(CommandHandler("разжаловать", cmd_demote))
+    app.add_handler(MessageHandler("хелпер", lambda u,c: handle_rank_command(u,c,'helper')))
+    app.add_handler(MessageHandler("модер", lambda u,c: handle_rank_command(u,c,'moder')))
+    app.add_handler(MessageHandler("руководитель", lambda u,c: handle_rank_command(u,c,'manager')))
+    app.add_handler(MessageHandler("зам", lambda u,c: handle_rank_command(u,c,'deputy_curator')))
+    app.add_handler(MessageHandler("куратор", lambda u,c: handle_rank_command(u,c,'curator')))
+    app.add_handler(MessageHandler("владелец", lambda u,c: handle_rank_command(u,c,'owner')))
+    app.add_handler(MessageHandler("кастом", lambda u,c: handle_rank_command(u,c,'custom')))
+    app.add_handler(MessageHandler("хелпер+", lambda u,c: handle_rank_command(u,c,'helper_plus')))
+    app.add_handler(MessageHandler("разжаловать", cmd_demote))

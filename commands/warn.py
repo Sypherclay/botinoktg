@@ -146,9 +146,9 @@ async def cmd_remove_warn(update, context):
     )
 
 def register(app):
-    app.add_handler(CommandHandler("выговор", cmd_warn))
-    app.add_handler(CommandHandler("лист", cmd_warn_list))
-    app.add_handler(CommandHandler("снять", cmd_remove_warn))
+    app.add_handler(MessageHandler("выговор", cmd_warn))
+    app.add_handler(MessageHandler("лист", cmd_warn_list))
+    app.add_handler(MessageHandler("снять", cmd_remove_warn))
     
     # Также обрабатываем вариант "!снять выговор"
     async def cmd_remove_warn_full(update, context):

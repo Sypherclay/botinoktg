@@ -348,10 +348,10 @@ def register(app):
     app.add_handler(CommandHandler("addzarplata", cmd_addzarplata))
     app.add_handler(CommandHandler("removezarplata", cmd_removezarplata))
     app.add_handler(CommandHandler("zptest", cmd_zptest))
-    app.add_handler(CommandHandler("зп", cmd_zp))
-    app.add_handler(CommandHandler("плюс", cmd_plus))
-    app.add_handler(CommandHandler("минус", cmd_minus))
-    app.add_handler(CommandHandler("зп", cmd_zp))
+    app.add_handler(MessageHandler("зп", cmd_zp))
+    app.add_handler(MessageHandler("плюс", cmd_plus))
+    app.add_handler(MessageHandler("минус", cmd_minus))
+    app.add_handler(MessageHandler("зп", cmd_zp))
     app.add_handler(MessageHandler(
         filters.COMMAND & filters.Regex(r'^-зп\b'),
         cmd_remove_from_salary

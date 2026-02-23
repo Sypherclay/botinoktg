@@ -1,17 +1,12 @@
 """
 ПЕРИОДИЧЕСКИЕ ЗАДАЧИ
-Автобэкапы, проверка отпусков, зарплаты, напоминания
 """
+import datetime  # ← ВАЖНО: импортируем модуль, а не класс
 import os
 import shutil
 import glob
-from datetime import datetime, timedelta
 import sqlite3
-from database import (
-    DB_PATH, get_setting, set_setting,
-    get_all_users_in_chat, get_all_chats,
-    cleanup_old_groups
-)
+from database import DB_PATH, get_setting, cleanup_old_groups
 from logger import log_system_event, log_error
 
 # ========== БЭКАПЫ ==========
@@ -22,7 +17,7 @@ async def create_database_backup(context):
         backup_dir = "backups"
         os.makedirs(backup_dir, exist_ok=True)
         
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_file = f"{backup_dir}/bot_database_{timestamp}.db"
         
         if os.path.exists("bot_database.db"):
@@ -31,7 +26,7 @@ async def create_database_backup(context):
             print(f"💾 Автобэкап: {backup_file} ({size:.1f} KB)")
             
             # Удаляем старые (старше 7 дней)
-            now = datetime.now().timestamp()
+            now = datetime.datetime.now().timestamp()
             deleted = 0
             for old in glob.glob(f"{backup_dir}/bot_database_*.db"):
                 if os.path.getmtime(old) < now - 7 * 86400:
@@ -58,10 +53,10 @@ async def check_vacation_end(context):
         vacations = cursor.fetchall()
         conn.close()
         
-        now = datetime.now()
+        now = datetime.datetime.now()
         
         for uid, end_str in vacations:
-            end = datetime.fromisoformat(end_str)
+            end = datetime.datetime.fromisoformat(end_str)
             
             if end < now:
                 # Завершаем отпуск
@@ -126,10 +121,10 @@ def setup_all_jobs(app):
         print("⚠️ JobQueue не доступен")
         return
     
-    # Бэкап каждый день в 03:00
+    # Бэкап каждый день в 03:00 - ИСПРАВЛЕНО!
     job.run_daily(
         callback=create_database_backup,
-        time=datetime.time(hour=3, minute=0),
+        time=datetime.time(3, 0),  # ← ИСПРАВЛЕНО! было datetime.time(hour=3, minute=0)
         days=(0,1,2,3,4,5,6),
         name="daily_backup"
     )
@@ -152,7 +147,7 @@ def setup_all_jobs(app):
     # Проверка зарплат каждый день в 00:00
     job.run_daily(
         callback=check_salaries,
-        time=datetime.time(hour=0, minute=0),
+        time=datetime.time(0, 0),  # ← ИСПРАВЛЕНО
         days=(0,1,2,3,4,5,6),
         name="salary_check"
     )
