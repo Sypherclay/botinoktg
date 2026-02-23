@@ -1,28 +1,32 @@
 """
-АДМИНИСТРИРОВАНИЕ БОТА
-Команды: /addadmin, /removeadmin, /listadmins
+АДМИНИСТРИРОВАНИЕ БОТА - ИСПРАВЛЕННАЯ ВЕРСИЯ
+Команды: /addadmin, /removeadmin, /listadmins, /setkicktopic, /resetkicktopic
 """
 from telegram.ext import CommandHandler
 from telegram.constants import ParseMode
-from permissions import is_owner
-from database import get_all_admins, add_admin_db, remove_admin_db, get_user_info
+import traceback
+from permissions import is_owner, is_admin
+from database import get_all_admins, add_admin_db, remove_admin_db, get_user_info, get_kick_topic_id, set_kick_topic_id
 from user_resolver import resolve_user
 from logger import log_admin_action, log_command
 
+print("✅ admin.py загружен!")
+
 async def cmd_addadmin(update, context):
     """Добавить администратора /addadmin"""
-    user_id = update.effective_user.id
-    chat_id = str(update.effective_chat.id)
-    
-    if not is_owner(user_id):
-        await update.message.reply_text("❌ Только владелец может добавлять администраторов")
-        return
-    
-    if not context.args:
-        await update.message.reply_text("Используйте: /addadmin ID_пользователя")
-        return
+    print("\n🔥 ВЫПОЛНЕНИЕ /addadmin")
     
     try:
+        user_id = update.effective_user.id
+        
+        if not is_owner(user_id):
+            await update.message.reply_text("❌ Только владелец может добавлять администраторов")
+            return
+        
+        if not context.args:
+            await update.message.reply_text("Используйте: /addadmin ID_пользователя")
+            return
+        
         new_admin_id = int(context.args[0])
         admins = get_all_admins()
         
@@ -41,34 +45,28 @@ async def cmd_addadmin(update, context):
             target=str(new_admin_id)
         )
         
-        log_command(
-            "/addadmin",
-            user_id,
-            admin_name,
-            chat_id,
-            f"Добавлен администратор: {new_admin_id}"
-        )
-        
         await update.message.reply_text(f"✅ Пользователь {new_admin_id} добавлен как администратор")
-    except ValueError:
-        await update.message.reply_text("❌ Неверный формат ID. ID должен быть числом")
+        
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_removeadmin(update, context):
     """Удалить администратора /removeadmin"""
-    user_id = update.effective_user.id
-    chat_id = str(update.effective_chat.id)
-    
-    if not is_owner(user_id):
-        await update.message.reply_text("❌ Только владелец может удалять администраторов")
-        return
-    
-    if not context.args:
-        await update.message.reply_text("Используйте: /removeadmin ID_пользователя")
-        return
+    print("\n🔥 ВЫПОЛНЕНИЕ /removeadmin")
     
     try:
+        user_id = update.effective_user.id
+        
+        if not is_owner(user_id):
+            await update.message.reply_text("❌ Только владелец может удалять администраторов")
+            return
+        
+        if not context.args:
+            await update.message.reply_text("Используйте: /removeadmin ID_пользователя")
+            return
+        
         admin_id_to_remove = int(context.args[0])
         admins = get_all_admins()
         
@@ -92,52 +90,163 @@ async def cmd_removeadmin(update, context):
             target=str(admin_id_to_remove)
         )
         
-        log_command(
-            "/removeadmin",
-            user_id,
-            admin_name,
-            chat_id,
-            f"Удален администратор: {admin_id_to_remove}"
-        )
-        
         await update.message.reply_text(f"✅ Пользователь {admin_id_to_remove} удален из администраторов")
-    except ValueError:
-        await update.message.reply_text("❌ Неверный формат ID. ID должен быть числом")
+        
     except Exception as e:
-        await update.message.reply_text(f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_listadmins(update, context):
     """Показать список администраторов /listadmins"""
-    user_id = update.effective_user.id
+    print("\n🔥 ВЫПОЛНЕНИЕ /listadmins")
     
-    from permissions import is_admin
-    if not is_admin(user_id):
-        await update.message.reply_text("❌ Доступ запрещен")
-        return
+    try:
+        user_id = update.effective_user.id
+        
+        if not is_admin(user_id):
+            await update.message.reply_text("❌ Доступ запрещен")
+            return
+        
+        admins = get_all_admins()
+        from config import OWNER_ID
+        
+        if not admins:
+            await update.message.reply_text("📭 Нет администраторов")
+            return
+        
+        text = "<b>👥 Список администраторов:</b>\n\n"
+        
+        for i, admin_id in enumerate(admins, 1):
+            status = "👑 Владелец" if admin_id == OWNER_ID else "🛡️ Администратор"
+            user_info = get_user_info(admin_id, str(update.effective_chat.id))
+            if user_info and user_info[0]:
+                name, _ = user_info
+                text += f"{i}. <code>{admin_id}</code> - {name} - {status}\n"
+            else:
+                text += f"{i}. <code>{admin_id}</code> - {status}\n"
+        
+        text += f"\n<b>📊 Всего:</b> {len(admins)} администратор(ов)"
+        
+        await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+        
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
+
+# ========== НОВЫЕ КОМАНДЫ ==========
+
+async def cmd_setkicktopic(update, context):
+    """Установить тему для сообщений о киках /setkicktopic ID"""
+    print("\n🔥 ВЫПОЛНЕНИЕ /setkicktopic")
     
-    admins = get_all_admins()
-    from config import OWNER_ID
+    try:
+        user_id = update.effective_user.id
+        
+        if not is_admin(user_id):
+            await update.message.reply_text("❌ Доступ запрещен")
+            return
+        
+        if not context.args:
+            current_topic = get_kick_topic_id()
+            if current_topic:
+                await update.message.reply_text(
+                    f"ℹ️ Текущая тема для киков: <code>{current_topic}</code>\n"
+                    f"Используйте: /setkicktopic ID_темы",
+                    parse_mode=ParseMode.HTML
+                )
+            else:
+                await update.message.reply_text(
+                    "ℹ️ Тема для киков не установлена.\n"
+                    "Используйте: /setkicktopic ID_темы",
+                    parse_mode=ParseMode.HTML
+                )
+            return
+        
+        topic_id = context.args[0]
+        
+        try:
+            int(topic_id)
+            set_kick_topic_id(topic_id)
+            
+            admin_name = update.effective_user.full_name
+            
+            clickable_admin = get_clickable_name(
+                update.effective_user.id,
+                update.effective_user.first_name,
+                update.effective_user.username
+            )
+            
+            log_admin_action(
+                admin_id=update.effective_user.id,
+                admin_name=admin_name,
+                action="Установил тему для киков",
+                details=f"Тема ID: {topic_id}"
+            )
+            
+            await update.message.reply_text(
+                f"✅ {clickable_admin} установил тему для сообщений о киках: <code>{topic_id}</code>",
+                parse_mode=ParseMode.HTML
+            )
+        except ValueError:
+            await update.message.reply_text("❌ ID темы должен быть числом")
+            
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
+
+async def cmd_resetkicktopic(update, context):
+    """Сбросить тему для сообщений о киках /resetkicktopic"""
+    print("\n🔥 ВЫПОЛНЕНИЕ /resetkicktopic")
     
-    if not admins:
-        await update.message.reply_text("📭 Нет администраторов")
-        return
-    
-    text = "<b>👥 Список администраторов:</b>\n\n"
-    
-    for i, admin_id in enumerate(admins, 1):
-        status = "👑 Владелец" if admin_id == OWNER_ID else "🛡️ Администратор"
-        user_info = get_user_info(admin_id, str(update.effective_chat.id))
-        if user_info:
-            name, _ = user_info
-            text += f"{i}. <code>{admin_id}</code> - {name} - {status}\n"
+    try:
+        user_id = update.effective_user.id
+        
+        if not is_admin(user_id):
+            await update.message.reply_text("❌ Доступ запрещен")
+            return
+        
+        current_topic = get_kick_topic_id()
+        set_kick_topic_id(None)
+        
+        admin_name = update.effective_user.full_name
+        
+        clickable_admin = get_clickable_name(
+            update.effective_user.id,
+            update.effective_user.first_name,
+            update.effective_user.username
+        )
+        
+        log_admin_action(
+            admin_id=update.effective_user.id,
+            admin_name=admin_name,
+            action="Сбросил тему для киков",
+            details=f"Была установлена тема: {current_topic if current_topic else 'не установлена'}"
+        )
+        
+        if current_topic:
+            await update.message.reply_text(
+                f"✅ {clickable_admin} сбросил тему для киков: <code>{current_topic}</code>",
+                parse_mode=ParseMode.HTML
+            )
         else:
-            text += f"{i}. <code>{admin_id}</code> - {status}\n"
-    
-    text += f"\n<b>📊 Всего:</b> {len(admins)} администратор(ов)"
-    
-    await update.message.reply_text(text, parse_mode=ParseMode.HTML)
+            await update.message.reply_text(
+                "ℹ️ Тема для киков и так не была установлена.",
+                parse_mode=ParseMode.HTML
+            )
+            
+    except Exception as e:
+        print(f"❌ Ошибка: {e}")
+        traceback.print_exc()
+        await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 def register(app):
+    print("📝 Регистрация команд admin.py...")
     app.add_handler(CommandHandler("addadmin", cmd_addadmin))
     app.add_handler(CommandHandler("removeadmin", cmd_removeadmin))
     app.add_handler(CommandHandler("listadmins", cmd_listadmins))
+    app.add_handler(CommandHandler("setkicktopic", cmd_setkicktopic))
+    app.add_handler(CommandHandler("resetkicktopic", cmd_resetkicktopic))
+    print("✅ admin.py зарегистрирован")

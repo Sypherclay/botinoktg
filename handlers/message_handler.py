@@ -1,6 +1,5 @@
 """
-ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ
-Статистика, авто-варны, юбилеи
+ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 import random
 from datetime import datetime
@@ -17,7 +16,9 @@ from database import (
 from logger import log_auto_warn
 from commands.autowarn import process_auto_warn
 
-# ========== ФУНКЦИЯ ПРЯМО ЗДЕСЬ ==========
+print("✅ message_handler.py загружен!")
+
+# ========== ФУНКЦИЯ ЮБИЛЕЕВ ==========
 def check_milestones(user_id, chat_id, topic_id, message_count):
     """Проверка достижения юбилейных отметок"""
     try:
@@ -37,7 +38,7 @@ def check_milestones(user_id, chat_id, topic_id, message_count):
                     user_display_name = custom_nick
                 else:
                     user_info = get_user_info(user_id, chat_id)
-                    if user_info:
+                    if user_info and user_info[0]:
                         user_display_name = user_info[0]
                     else:
                         user_display_name = f"Пользователь {user_id}"
@@ -47,7 +48,7 @@ def check_milestones(user_id, chat_id, topic_id, message_count):
                     congrat_message = message_template.format(ник=user_display_name)
                     return congrat_message
     except Exception as e:
-        print(f"Ошибка в check_milestones: {e}")
+        print(f"❌ Ошибка в check_milestones: {e}")
     
     return None
 
@@ -69,7 +70,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.left_chat_member:
         left = update.message.left_chat_member
         if not left.is_bot:
-            print(f"Пользователь {left.id} покинул чат")
+            print(f"👋 Пользователь {left.id} покинул чат")
         return
     
     # ========== ОСНОВНАЯ СТАТИСТИКА ==========
@@ -97,6 +98,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_text = bool(update.message.text or update.message.caption)
     
     print(f"📊 has_media={has_media}, has_text={has_text}")
+    print(f"   Тема ID: {topic_id}, название: {topic_name}")
     
     # Альбомы
     is_first = True
@@ -108,20 +110,41 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if random.randint(1, 100) == 1:
         cleanup_old_groups()
     
-    # Проверка авто-варн темы
+    # ========== ПРОВЕРКА АВТО-ВАРН ТЕМЫ ==========
     is_auto_topic = is_auto_warn_enabled(topic_id)
     print(f"   Тема в списке авто-варнов: {is_auto_topic}")
     
+    # Получаем список всех авто-варн тем для диагностики
+    from database import get_auto_warn_topics
+    auto_topics = get_auto_warn_topics()
+    print(f"   Все авто-варн темы: {auto_topics}")
+    
     # ========== АВТО-ВАРНЫ ==========
     if is_first and is_auto_topic and not is_whitelisted(user_id):
+        print("   ⚠️ Условия для авто-варна выполнены!")
+        
+        # Только текст = варн
         if has_text and not has_media:
-            print("⚠️ Только текст - даём варн")
+            print("   ⚠️ Только текст - даём варн")
             await process_auto_warn(update, context, user_id, True, True)
+        
+        # Только медиа = варн
         elif not has_text and has_media:
-            print("⚠️ Только медиа - даём варн")
+            print("   ⚠️ Только медиа - даём варн")
             await process_auto_warn(update, context, user_id, True, False)
+        
+        # Текст+медиа = ОК
         elif has_text and has_media:
-            print("✅ Текст+медиа - ОК")
+            print("   ✅ Текст+медиа - ОК")
+        else:
+            print("   ❓ Непонятный тип сообщения")
+    else:
+        if not is_first:
+            print("   ⏭️ Не первое сообщение в альбоме")
+        if not is_auto_topic:
+            print("   ⏭️ Тема не в списке авто-варнов")
+        if is_whitelisted(user_id):
+            print("   ⏭️ Пользователь в белом списке")
     
     # ========== СОХРАНЕНИЕ В БД ==========
     if is_first:
