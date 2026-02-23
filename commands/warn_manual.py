@@ -11,7 +11,7 @@ from database import (
     add_warning_v2, get_user_warns_with_reasons, get_all_users_with_warns,
     remove_last_warn, get_user_rank_db, get_user_info
 )
-from permissions import has_permission, get_clickable_name, get_user_rank
+from permissions import has_permission, get_clickable_name, get_user_rank, is_owner
 from user_resolver import resolve_user
 from constants import RANKS, ANONYMOUS_ADMIN_ID
 from logger import log_command
@@ -21,6 +21,10 @@ print("✅ warn_manual.py загружен (полная версия с ран�
 # ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ РАНГА ==========
 def has_rank(user_id, required_rank):
     """Проверяет, имеет ли пользователь требуемый ранг или выше"""
+    # Владелец может всё
+    if is_owner(user_id):
+        return True
+    
     user_rank = get_user_rank_db(user_id)
     
     # Список рангов по возрастанию
@@ -51,7 +55,7 @@ async def cmd_add_warn(update, context):
         
         print(f"   admin_id: {user_id}")
         
-        # ✅ ПРОВЕРКА: только для Куратор и выше
+        # ✅ ПРОВЕРКА: только для Куратор и выше (владелец может всё)
         if not has_rank(user_id, 'curator'):
             user_rank = get_user_rank_db(user_id)
             rank_name = RANKS.get(user_rank, {}).get('name', 'Участник')
@@ -100,12 +104,13 @@ async def cmd_add_warn(update, context):
             await update.message.reply_text("❌ Нельзя выдать варн анонимному администратору")
             return
         
-        # Проверка ранга цели (нельзя выдавать варны кураторам и выше)
-        target_rank = get_user_rank_db(user.id)
-        if target_rank in ['curator', 'owner', 'deputy_curator']:
-            rank_name = RANKS.get(target_rank, {}).get('name', '')
-            await update.message.reply_text(f"❌ Нельзя выдать варн пользователю с рангом '{rank_name}'")
-            return
+        # Проверка ранга цели (нельзя выдавать варны кураторам и выше, но владелец может)
+        if not is_owner(user_id):
+            target_rank = get_user_rank_db(user.id)
+            if target_rank in ['curator', 'owner', 'deputy_curator']:
+                rank_name = RANKS.get(target_rank, {}).get('name', '')
+                await update.message.reply_text(f"❌ Нельзя выдать варн пользователю с рангом '{rank_name}'")
+                return
         
         # Добавляем варн с причиной
         total_warns = add_warning_v2(
@@ -150,7 +155,7 @@ async def cmd_remove_warn(update, context):
         
         print(f"   admin_id: {user_id}")
         
-        # ✅ ПРОВЕРКА: только для Куратор и выше
+        # ✅ ПРОВЕРКА: только для Куратор и выше (владелец может всё)
         if not has_rank(user_id, 'curator'):
             user_rank = get_user_rank_db(user_id)
             rank_name = RANKS.get(user_rank, {}).get('name', 'Участник')
@@ -169,8 +174,10 @@ async def cmd_remove_warn(update, context):
         # Сохраняем аргументы для resolve_user
         if len(parts) > 1:
             context.args = parts[1:]
+        else:
+            context.args = []
         
-        # Ищем пользователя
+        # Ищем пользователя (приоритет: reply > аргументы)
         user = await resolve_user(update, context, required=True, allow_self=False)
         if not user:
             return
@@ -230,7 +237,7 @@ async def cmd_warn_list(update, context):
         
         print(f"   user_id: {user_id}")
         
-        # ✅ ПРОВЕРКА: только для Руководитель и выше
+        # ✅ ПРОВЕРКА: только для Руководитель и выше (владелец может всё)
         if not has_rank(user_id, 'manager'):
             user_rank = get_user_rank_db(user_id)
             rank_name = RANKS.get(user_rank, {}).get('name', 'Участник')
