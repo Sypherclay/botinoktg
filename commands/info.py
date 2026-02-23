@@ -1,6 +1,6 @@
 """
 ИНФОРМАЦИЯ О ПОЛЬЗОВАТЕЛЯХ - ИСПРАВЛЕННАЯ ВЕРСИЯ
-!инфа, !кто админ
+!инфа, !кто админ - с поддержкой @user
 """
 from datetime import datetime
 from telegram.ext import MessageHandler, filters
@@ -50,7 +50,7 @@ def get_top_balance(chat_id):
 
 async def cmd_who_admin(update, context):
     """Команда !кто админ"""
-    print("\n🔥🔥🔥 ВЫПОЛНЕНИЕ !кто админ")
+    print("\n🔥 ВЫПОЛНЕНИЕ !кто админ")
     
     try:
         user_id = update.effective_user.id
@@ -107,9 +107,8 @@ async def cmd_who_admin(update, context):
         if not response:
             response = "📭 Нет администраторов с рангами"
         
-        print(f"📤 Отправка ответа (длина: {len(response)})")
         await update.message.reply_text(response, parse_mode=ParseMode.HTML, reply_to_message_id=update.message.message_id)
-        print("✅ Ответ отправлен!")
+        print("✅ !кто админ выполнен")
         
     except Exception as e:
         print(f"❌ Ошибка в cmd_who_admin: {e}")
@@ -117,31 +116,39 @@ async def cmd_who_admin(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_info(update, context):
-    """Команда !инфа"""
-    print("\n🔥🔥🔥 ВЫПОЛНЕНИЕ !инфа")
+    """Команда !инфа - информация о пользователе (с поддержкой @user)"""
+    print("\n🔥 ВЫПОЛНЕНИЕ !инфа")
     print(f"   Текст: {update.message.text}")
-    print(f"   От: {update.effective_user.first_name}")
     
     try:
         chat_id = str(update.effective_chat.id)
         print(f"   chat_id: {chat_id}")
         
-        print("🔍 Вызов resolve_user...")
-        user = await resolve_user(update, context, required=False, allow_self=True)
+        # Определяем, нужно ли искать другого пользователя
+        message_text = update.message.text
+        parts = message_text.split()
         
-        if not user:
-            print("❌ resolve_user вернул None - выход")
-            await update.message.reply_text("❌ Ошибка: пользователь не найден")
-            return
+        # Если есть аргументы или это ответ на сообщение
+        if len(parts) > 1 or update.message.reply_to_message:
+            print("   🔍 Поиск целевого пользователя...")
+            
+            # Сохраняем аргументы для resolve_user
+            if len(parts) > 1:
+                context.args = parts[1:]
+            
+            user = await resolve_user(update, context, required=True, allow_self=False)
+            if not user:
+                return
+        else:
+            # Если нет аргументов - показываем себя
+            user = update.effective_user
+            print(f"   Показываем себя: {user.id}")
         
-        print(f"✅ user найден: ID={user.id}, имя={user.first_name}")
+        print(f"✅ user: ID={user.id}, имя={user.first_name}")
         
-        # ===== ПОЛУЧЕНИЕ ИНФОРМАЦИИ С ПРОВЕРКАМИ =====
-        print("🔍 Получение информации о пользователе...")
+        # Получаем информацию о пользователе
         info = get_user_info(user.id, chat_id)
-        print(f"   info: {info}")
         
-        # ✅ Защита от None и пустых значений
         if info and isinstance(info, tuple) and len(info) >= 2:
             name = info[0] if info[0] else user.first_name
             username = info[1] if info[1] else user.username
@@ -151,28 +158,14 @@ async def cmd_info(update, context):
         
         custom = get_user_custom_nick(user.id)
         display = custom if custom else name
-        print(f"   name: {name}, username: {username}, custom: {custom}")
-        
-        # ✅ Получение clickable_name с проверкой
-        print("🔍 Получение clickable_name...")
         clickable = get_clickable_name(user.id, display, username)
-        print(f"   clickable: {clickable}")
         
-        # ✅ Получение ранга
-        print("🔍 Получение ранга...")
         rank = get_user_rank_db(user.id)
         rank_name = RANKS.get(rank, {}).get('name', 'Участник')
-        print(f"   rank: {rank}, rank_name: {rank_name}")
-        
-        # ✅ Получение выговоров
-        print("🔍 Получение выговоров...")
         warnings = get_warnings_count(user.id, chat_id)
         max_w = int(get_setting('max_warnings', '3'))
         immunity = rank in ['owner', 'curator', 'custom', 'helper_plus']
-        print(f"   warnings: {warnings}, max_w: {max_w}")
         
-        # ✅ Получение отпусков
-        print("🔍 Получение отпусков...")
         vacation = get_vacation_info(user.id)
         used_days = 0
         limit = int(get_setting('max_vacation_days', '14'))
@@ -185,43 +178,11 @@ async def cmd_info(update, context):
                     vacation_status = f"до {datetime.fromisoformat(vacation[1]).strftime('%d.%m.%Y')}"
             except:
                 pass
-        print(f"   used_days: {used_days}, limit: {limit}")
         
-        # ✅ Получение баланса
-        print("🔍 Получение баланса...")
         balance = get_user_balance(user.id)
-        print(f"   balance: {balance}")
         
-        # ✅ Получение топ-позиций
-        print("🔍 Получение топ-позиций...")
-        top_activity = get_top_user(chat_id, 'count')
-        top_punish = get_top_user(chat_id, 'punishments')
-        top_balance = get_top_balance(chat_id)
-        
-        badges = []
-        if user.id == top_activity:
-            badges.append("🏆 ТОП-1 Актив")
-        if user.id == top_punish:
-            badges.append("👑 ТОП-1 Наказания")
-        if user.id == top_balance:
-            badges.append("💎 ТОП-1 Баланс")
-        print(f"   badges: {badges}")
-        
-        # ✅ Получение наград
-        print("🔍 Получение наград...")
-        rewards = get_user_rewards(user.id)
-        reward_badges = []
-        if rewards and '10_complaints' in rewards:
-            reward_badges.append("💸 ЗА ДЕНЬГИ ДА")
-        print(f"   reward_badges: {reward_badges}")
-        
-        # ===== ФОРМИРОВАНИЕ ОТВЕТА =====
-        print("📝 Формирование ответа...")
         response = f"👤 <b>Пользователь:</b> {clickable}\n"
         response += f"🎖️ <b>Должность:</b> {rank_name}\n\n"
-        
-        if badges:
-            response += f"{' | '.join(badges)}\n\n"
         
         if immunity:
             response += f"⚠️ <b>Выговоры:</b> 🛡️ ИММУНИТЕТ\n"
@@ -235,26 +196,21 @@ async def cmd_info(update, context):
             response += f"\n📅 <b>В отпуске:</b> нет"
         
         response += f"\n💰 <b>Баланс:</b> {balance} HC"
-        
-        if reward_badges:
-            response += f"\n\n🎁 <b>Ачивки:</b> {' | '.join(reward_badges)}"
-        
         response += f"\n\n🆔 <b>ID:</b> <code>{user.id}</code>"
         if user.username:
             response += f"\n🌐 <b>Username:</b> @{user.username}"
         
-        print(f"📤 Отправка ответа (длина: {len(response)})")
         await update.message.reply_text(response, parse_mode=ParseMode.HTML)
-        print("✅ Ответ отправлен!")
+        print("✅ !инфа выполнена")
         
     except Exception as e:
-        print(f"❌ КРИТИЧЕСКАЯ ОШИБКА: {e}")
+        print(f"❌ Ошибка в cmd_info: {e}")
         traceback.print_exc()
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 def register(app):
     print("📝 Регистрация команд info.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!кто админ$'), cmd_who_admin))
-    app.add_handler(MessageHandler(filters.Regex(r'^!инфа$'), cmd_info))
-    app.add_handler(MessageHandler(filters.Regex(r'^!info$'), cmd_info))
+    app.add_handler(MessageHandler(filters.Regex(r'^!инфа\b'), cmd_info))  # \b чтобы ловило и !инфа и !инфа @user
+    app.add_handler(MessageHandler(filters.Regex(r'^!info\b'), cmd_info))
     print("✅ info.py зарегистрирован")

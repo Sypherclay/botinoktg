@@ -103,13 +103,15 @@ async def cmd_vacation(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_my_vacation(update, context):
-    """!мой отпуск - показать свой отпуск"""
+    """!мой отпуск - показать свой отпуск или отпуск другого пользователя"""
     print("\n🔥 ВЫПОЛНЕНИЕ !мой отпуск")
     
     try:
         user_id = update.effective_user.id
+        chat_id = str(update.effective_chat.id)
         print(f"   user_id: {user_id}")
         
+        # Определяем, для кого показываем отпуск
         target_id = user_id
         target_user = update.effective_user
         
@@ -117,14 +119,24 @@ async def cmd_my_vacation(update, context):
         message_text = update.message.text
         parts = message_text.split()
         
-        if len(parts) > 1:
-            context.args = parts[1:]
+        # Если есть аргументы или это ответ на сообщение
+        if len(parts) > 1 or update.message.reply_to_message:
+            print("   Поиск целевого пользователя...")
+            
+            # Сохраняем аргументы для resolve_user
+            if len(parts) > 1:
+                context.args = parts[1:]
+            
             user = await resolve_user(update, context, required=True, allow_self=False)
             if user:
                 target_id = user.id
                 target_user = user
-                print(f"   target: {target_id} - {target_user.first_name}")
+                print(f"   target найден: {target_id} - {target_user.first_name}")
+            else:
+                # Если resolve_user вернул None и отправил сообщение, выходим
+                return
         
+        # Получаем информацию об отпуске
         vacation = get_vacation(target_id)
         clickable = get_clickable_name(target_id, target_user.first_name, target_user.username)
         

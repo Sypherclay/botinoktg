@@ -1,6 +1,6 @@
 """
 КОМАНДЫ ВЫГОВОРОВ - ИСПРАВЛЕННАЯ ВЕРСИЯ
-!выговор, !лист, !снять выговор
+!выговор, !лист, !снять выговор - с поддержкой @user и reply
 """
 from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
@@ -17,7 +17,7 @@ from logger import log_warning_issued, log_command
 print("✅ warn.py загружен!")
 
 async def cmd_warn(update, context):
-    """!выговор [причина] - выдать выговор"""
+    """!выговор [причина] - выдать выговор (поддерживает @user и reply)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !выговор")
     
     try:
@@ -30,38 +30,42 @@ async def cmd_warn(update, context):
             await update.message.reply_text("❌ Нет прав")
             return
         
-        # Получаем причину из текста
+        # Получаем текст сообщения
         message_text = update.message.text
         parts = message_text.split(maxsplit=2)
+        
+        # Определяем причину
+        reason = "Нарушение правил"
         
         # Сохраняем аргументы для resolve_user
         if len(parts) > 1:
             context.args = [parts[1]]
         
-        user = await resolve_user(update, context)
+        # Ищем пользователя (приоритет: reply > аргументы)
+        user = await resolve_user(update, context, required=True, allow_self=False)
         if not user:
             return
         
         print(f"   target: {user.id} - {user.first_name}")
         
+        # Проверка на анонимного админа
         if user.id == ANONYMOUS_ADMIN_ID:
             await update.message.reply_text("❌ Нельзя выдать выговор анонимному администратору")
             return
         
-        # Определяем причину
+        # Если есть причина в третьем аргументе
         if len(parts) > 2:
             reason = parts[2]
-        elif len(parts) > 1 and update.message.reply_to_message:
-            reason = parts[1] if len(parts) > 1 else "Нарушение правил"
-        else:
-            reason = "Нарушение правил"
+        # Если есть причина и это не аргумент для resolve_user (например, ответ на сообщение)
+        elif len(parts) > 1 and update.message.reply_to_message and not parts[1].startswith(('@', '!')) and not parts[1].isdigit():
+            reason = parts[1]
         
         print(f"   reason: {reason}")
         
-        # Проверка ранга
-        rank = get_user_rank_db(user.id)
-        if rank in ['owner', 'curator', 'custom', 'helper_plus']:
-            rank_name = RANKS.get(rank, {}).get('name', '')
+        # Проверка ранга цели
+        target_rank = get_user_rank_db(user.id)
+        if target_rank in ['owner', 'curator', 'custom', 'helper_plus']:
+            rank_name = RANKS.get(target_rank, {}).get('name', '')
             await update.message.reply_text(f"❌ Пользователь с рангом '{rank_name}' не может получить выговор")
             return
         
@@ -74,7 +78,7 @@ async def cmd_warn(update, context):
         
         clickable = get_clickable_name(user.id, user.first_name, user.username)
         
-        response = f"⚠️ {clickable} получает выговор\n🫡 Причина: {reason}\n📊 Выговоров: {warning_count}/{max_warnings}\n\n💰Снять выговор можно за 200 рублей"
+        response = f"⚠️ {clickable} получает выговор\n🫡 Причина: {reason}\n📊 Выговоров: {warning_count}/{max_warnings}"
         await update.message.reply_text(response, parse_mode=ParseMode.HTML)
         print(f"✅ Выговор выдан, теперь {warning_count}/{max_warnings}")
         
@@ -133,14 +137,7 @@ async def cmd_warn_list(update, context):
             warnings_list.append(f"📝 {clickable} - {warning_count}/{max_w}")
         
         response = "📋 <b>СПИСОК ВЫГОВОРОВ</b>\n\n" + "\n".join(warnings_list)
-        
-        if len(response) > 4000:
-            parts = [response[i:i+4000] for i in range(0, len(response), 4000)]
-            for part in parts:
-                await update.message.reply_text(part, parse_mode=ParseMode.HTML)
-        else:
-            await update.message.reply_text(response, parse_mode=ParseMode.HTML)
-        
+        await update.message.reply_text(response, parse_mode=ParseMode.HTML)
         print("✅ Список выговоров отправлен")
         
     except Exception as e:
@@ -149,7 +146,7 @@ async def cmd_warn_list(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_remove_warn(update, context):
-    """!снять выговор - снять последний выговор"""
+    """!снять выговор - снять последний выговор (поддерживает @user и reply)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !снять выговор")
     
     try:
@@ -162,14 +159,16 @@ async def cmd_remove_warn(update, context):
             await update.message.reply_text("❌ Нет прав")
             return
         
-        # Получаем цель из аргументов
+        # Получаем текст сообщения
         message_text = update.message.text
         parts = message_text.split()
         
+        # Сохраняем аргументы для resolve_user
         if len(parts) > 1:
             context.args = parts[1:]
         
-        user = await resolve_user(update, context)
+        # Ищем пользователя
+        user = await resolve_user(update, context, required=True, allow_self=False)
         if not user:
             return
         

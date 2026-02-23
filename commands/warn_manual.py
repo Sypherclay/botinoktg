@@ -1,6 +1,6 @@
 """
 РУЧНЫЕ ВАРНЫ - ИСПРАВЛЕННАЯ ВЕРСИЯ
-!варн, !снять варн, !варнлист
+!варн, !снять варн, !варнлист - с поддержкой @user и reply
 """
 from telegram.ext import MessageHandler, filters
 from telegram.constants import ParseMode
@@ -19,7 +19,7 @@ from logger import log_command
 print("✅ warn_manual.py загружен!")
 
 async def cmd_add_warn(update, context):
-    """!варн [причина] - выдать ручной варн"""
+    """!варн [причина] - выдать ручной варн (поддерживает @user и reply)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !варн")
     
     try:
@@ -32,15 +32,19 @@ async def cmd_add_warn(update, context):
             await update.message.reply_text("❌ Нет прав")
             return
         
-        # Получаем причину из текста
+        # Получаем текст сообщения
         message_text = update.message.text
         parts = message_text.split(maxsplit=2)
+        
+        # Определяем причину
+        reason = "Ручной варн"
         
         # Сохраняем аргументы для resolve_user
         if len(parts) > 1:
             context.args = [parts[1]]
         
-        user = await resolve_user(update, context)
+        # Ищем пользователя
+        user = await resolve_user(update, context, required=True, allow_self=False)
         if not user:
             return
         
@@ -56,11 +60,10 @@ async def cmd_add_warn(update, context):
             await update.message.reply_text(f"❌ Пользователь не может получить варн")
             return
         
-        # Определяем причину
-        reason = "Ручной варн"
+        # Определяем причину из аргументов
         if len(parts) > 2:
             reason = parts[2]
-        elif len(parts) > 1 and update.message.reply_to_message:
+        elif len(parts) > 1 and update.message.reply_to_message and not parts[1].startswith(('@', '!')) and not parts[1].isdigit():
             reason = parts[1]
         
         print(f"   reason: {reason}")
@@ -113,7 +116,7 @@ async def cmd_add_warn(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_remove_warn(update, context):
-    """!снять варн - снять все варны"""
+    """!снять варн - снять все варны (поддерживает @user и reply)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !снять варн")
     
     try:
@@ -126,14 +129,16 @@ async def cmd_remove_warn(update, context):
             await update.message.reply_text("❌ Нет прав")
             return
         
-        # Получаем цель из аргументов
+        # Получаем текст сообщения
         message_text = update.message.text
         parts = message_text.split()
         
+        # Сохраняем аргументы для resolve_user
         if len(parts) > 1:
             context.args = parts[1:]
         
-        user = await resolve_user(update, context)
+        # Ищем пользователя
+        user = await resolve_user(update, context, required=True, allow_self=False)
         if not user:
             return
         
