@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-ГЛАВНЫЙ ФАЙЛ - ИСПРАВЛЕННАЯ ВЕРСИЯ
+ГЛАВНЫЙ ФАЙЛ БОТА - С ПОДКЛЮЧЕННЫМ MESSAGE_HANDLER
 """
 import os
 from telegram.ext import Application, MessageHandler, filters, CallbackQueryHandler, CommandHandler
 from config import BOT_TOKEN
 from commands import register_all_commands
+from handlers.message_handler import handle_message  # ← ВАЖНО!
 from keyboards.callback_handler import handle_callback_query
 from database import init_database
 from logger import setup_logger
@@ -25,7 +26,7 @@ async def debug_all(update, context):
 
 def main():
     print("\n" + "="*50)
-    print("🚀 ИСПРАВЛЕННАЯ ВЕРСИЯ")
+    print("🚀 ЗАПУСК БОТА")
     print("="*50)
     
     os.makedirs("backups", exist_ok=True)
@@ -37,23 +38,27 @@ def main():
     
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # ===== ВАЖНО: ПРАВИЛЬНЫЙ ПОРЯДОК =====
+    # ===== ПРАВИЛЬНЫЙ ПОРЯДОК =====
     
-    # 1. СНАЧАЛА прямые команды
+    # 1. Прямые команды
     print("\n➕ 1. Регистрация прямых команд...")
     app.add_handler(CommandHandler("testdirect", test_direct))
     app.add_handler(MessageHandler(filters.COMMAND & filters.Regex(r'^!прямая\b'), test_direct))
     
-    # 2. ПОТОМ все команды из папки commands/
+    # 2. Все команды из папки commands/
     print("\n📦 2. Загрузка команд из папки commands/...")
     register_all_commands(app)
     
-    # 3. ПОТОМ callback обработчик
+    # 3. Callback обработчик
     print("\n🔘 3. Регистрация callback обработчика...")
     app.add_handler(CallbackQueryHandler(handle_callback_query))
     
-    # 4. ДЕБАГГЕР - В САМОМ КОНЦЕ (group=-1 означает самый низкий приоритет)
-    print("\n🔍 4. Регистрация дебаггера...")
+    # 4. ✨✨✨ ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ ✨✨✨
+    print("\n📝 4. Регистрация обработчика сообщений (message_handler)...")
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle_message))
+    
+    # 5. Дебаггер - САМЫЙ ПОСЛЕДНИЙ (низкий приоритет)
+    print("\n🔍 5. Регистрация дебаггера...")
     app.add_handler(MessageHandler(filters.ALL, debug_all), group=-1)
     
     print("\n" + "="*50)
