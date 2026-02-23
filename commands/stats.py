@@ -8,7 +8,7 @@ from telegram.constants import ParseMode
 from database import (
     get_all_chats, get_chat_topics, get_topic_users,
     get_user_info, get_user_custom_nick, get_user_punishments,
-    get_user_warnings_count, get_user_max_warnings, get_user_topic_count
+    get_warnings_count, get_user_max_warnings, get_user_topic_count
 )
 from permissions import is_admin, is_owner
 from database import is_moderator_db
@@ -238,7 +238,7 @@ async def show_user_stats(query, user_id, target_id):
     
     total = get_user_topic_count(chat_id, topic, target_id)
     punish = get_user_punishments(target_id, chat_id)
-    warns = get_user_warnings_count(target_id, chat_id)
+    warns = get_warnings_count(target_id, chat_id)
     max_w = get_user_max_warnings(target_id)
     
     topic_text = "Все темы" if topic is None else f"Тема {topic}"
