@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-ГЛАВНЫЙ ФАЙЛ БОТА - МАКСИМАЛЬНО ПРОСТОЙ
-Всего 30 строк!
+ГЛАВНЫЙ ФАЙЛ БОТА - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 import logging
 import os
@@ -25,8 +24,9 @@ def main():
     os.makedirs("backups", exist_ok=True)
     os.makedirs("logs", exist_ok=True)
     
-    # Настройка
-    setup_logger()
+    # Настройка логирования - ИСПРАВЛЕНО!
+    setup_logger('bot')  # ← БЫЛО: setup_logger()
+    
     init_database()
     set_owner_id(OWNER_ID)
     
