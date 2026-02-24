@@ -1,7 +1,7 @@
 """
 РУЧНЫЕ ВАРНЫ - РАБОЧАЯ ВЕРСИЯ
-!варн - выдаёт варн (поддерживает @user, ID, reply и причину на след. строке)
-!снять варн - снимает последний варн (поддерживает @user, ID, reply)
+!варн - выдаёт варн (поддерживает @user, ID, кастомный ник, reply)
+!снять варн - снимает последний варн (поддерживает @user, ID, кастомный ник, reply)
 !варн лист - список всех пользователей с варнами
 """
 from telegram.ext import MessageHandler, filters
@@ -9,14 +9,15 @@ from telegram.constants import ParseMode
 import traceback
 from database import (
     add_warning_v2, get_user_warns_with_reasons, get_all_users_with_warns,
-    remove_last_warn, get_user_rank_db, get_user_info
+    remove_last_warn, get_user_rank_db, get_user_info,
+    get_user_id_by_custom_nick  # 👈 ВАЖНО!
 )
 from permissions import has_permission, get_clickable_name, get_user_rank, is_owner
 from user_resolver import resolve_user
 from constants import RANKS, ANONYMOUS_ADMIN_ID
 from logger import log_command
 
-print("✅ warn_manual.py загружен (рабочая версия)!")
+print("✅ warn_manual.py загружен (рабочая версия с кастомными никами)!")
 
 # ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ РАНГА ==========
 def has_rank(user_id, required_rank):
@@ -82,14 +83,14 @@ async def cmd_add_warn(update, context):
             user = update.message.reply_to_message.from_user
             print(f"   найден по reply: {user.id}")
             # Если есть аргумент, но это не похоже на пользователя - это может быть причина
-            if target_arg and not target_arg.startswith('@') and not target_arg.isdigit():
+            if target_arg and not target_arg.startswith('@') and not target_arg.isdigit() and not get_user_id_by_custom_nick(target_arg):
                 reason = target_arg
         
         # 2. Если нет reply, но есть аргумент
         elif target_arg:
             # Проверяем, похож ли аргумент на пользователя
-            if target_arg.startswith('@') or target_arg.isdigit():
-                # Это похоже на пользователя
+            if target_arg.startswith('@') or target_arg.isdigit() or get_user_id_by_custom_nick(target_arg):
+                # Это похоже на пользователя (username, ID или кастомный ник)
                 context.args = [target_arg]
                 user = await resolve_user(update, context, required=True, allow_self=False)
                 if not user:
@@ -98,9 +99,8 @@ async def cmd_add_warn(update, context):
             else:
                 # Аргумент - это часть причины
                 reason = target_arg + (" " + reason if reason != "Без причины" else "")
-                # Берём себя? Нет, нельзя выдать варн себе
                 await update.message.reply_text(
-                    "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID",
+                    "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID\n4. Кастомный ник",
                     parse_mode=ParseMode.HTML
                 )
                 return
@@ -108,7 +108,7 @@ async def cmd_add_warn(update, context):
         # 3. Если нет ни reply, ни аргумента
         else:
             await update.message.reply_text(
-                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID",
+                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID\n4. Кастомный ник",
                 parse_mode=ParseMode.HTML
             )
             return
@@ -195,7 +195,7 @@ async def cmd_remove_warn(update, context):
         # 3. Если нет ничего
         else:
             await update.message.reply_text(
-                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID",
+                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID\n4. Кастомный ник",
                 parse_mode=ParseMode.HTML
             )
             return

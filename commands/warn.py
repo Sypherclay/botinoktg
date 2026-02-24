@@ -243,7 +243,7 @@ async def cmd_remove_warn(update, context):
         # 3. Если нет ничего
         else:
             await update.message.reply_text(
-                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID",
+                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID\n4. Кастомный ник",
                 parse_mode=ParseMode.HTML
             )
             return
