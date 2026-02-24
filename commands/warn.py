@@ -206,7 +206,7 @@ async def cmd_my_warnings(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_remove_warn(update, context):
-    """!снять выговор - снять последний выговор (поддерживает @user, ID и reply)"""
+    """!снять выговор - снять последний выговор"""
     print("\n🔥 ВЫПОЛНЕНИЕ !снять выговор")
     
     try:
@@ -221,25 +221,32 @@ async def cmd_remove_warn(update, context):
         
         # Получаем текст сообщения
         message_text = update.message.text
-        parts = message_text.split()
+        parts = message_text.split(maxsplit=1)
         
-        # Сохраняем аргументы для resolve_user (все, кроме первого слова)
-        if len(parts) > 1:
-            # Проверяем, что второй аргумент не равен "выговор"
-            if parts[1].lower() != 'выговор':
-                context.args = [parts[1]]
-                print(f"   аргумент для resolve_user: {context.args}")
-            else:
-                context.args = []
+        # Ищем пользователя
+        user = None
+        
+        # 1. Сначала проверяем reply
+        if update.message.reply_to_message:
+            user = update.message.reply_to_message.from_user
+            print(f"   найден по reply: {user.id}")
+        
+        # 2. Если нет reply, но есть аргумент
+        elif len(parts) > 1:
+            context.args = [parts[1]]
+            print(f"   аргумент для поиска: {context.args}")
+            user = await resolve_user(update, context, required=True, allow_self=False)
+            if not user:
+                return
+            print(f"   найден по аргументу: {user.id}")
+        
+        # 3. Если нет ничего
         else:
-            context.args = []
-        
-        # Ищем пользователя (приоритет: reply > аргументы)
-        user = await resolve_user(update, context, required=True, allow_self=False)
-        if not user:
+            await update.message.reply_text(
+                "❌ Укажите пользователя:\n1. Ответьте на сообщение\n2. @username\n3. ID",
+                parse_mode=ParseMode.HTML
+            )
             return
-        
-        print(f"   target: {user.id} - {user.first_name}")
         
         if user.id == ANONYMOUS_ADMIN_ID:
             await update.message.reply_text("❌ Нельзя снять выговор анонимному администратору")
