@@ -473,5 +473,5 @@ def register(app):
     app.add_handler(MessageHandler(filters.Regex(r'^!плюс\b'), cmd_plus))
     app.add_handler(MessageHandler(filters.Regex(r'^!минус\b'), cmd_minus))
     app.add_handler(MessageHandler(filters.Regex(r'^-зп\b'), cmd_remove_from_salary))
-    app.add_handler(MessageHandler(filters.Regex(r'^\+$'), cmd_plus_reply))
-    print("✅ salary.py зарегистрирован")
+    app.add_handler(MessageHandler(filters.Regex(r'^\+\d*$'), cmd_plus_reply))
+    print("✅ salary.py зарегистрирован")    
