@@ -1,5 +1,5 @@
 """
-ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ - ДИАГНОСТИЧЕСКАЯ ВЕРСИЯ
+ГЛАВНЫЙ ОБРАБОТЧИК СООБЩЕНИЙ - ИСПРАВЛЕННАЯ ВЕРСИЯ
 """
 import random
 from datetime import datetime
@@ -12,12 +12,13 @@ from database import (
     update_user_activity, get_milestone_tracked_topics,
     get_user_achieved_milestones, add_user_milestone,
     get_user_custom_nick, get_milestone_message, get_user_info,
-    get_auto_warn_topics  # добавим для диагностики
+    get_auto_warn_topics
 )
+from constants import ANONYMOUS_ADMIN_ID
 from logger import log_auto_warn
 from commands.autowarn import process_auto_warn
 
-print("✅ message_handler.py загружен (диагностическая версия)!")
+print("✅ message_handler.py загружен!")
 
 # ========== ФУНКЦИЯ ЮБИЛЕЕВ ==========
 def check_milestones(user_id, chat_id, topic_id, message_count):
@@ -60,8 +61,12 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     print(f"\n🔥 ПОЛУЧЕНО СООБЩЕНИЕ: {update.message.text}")
-    print(f"   ID чата: {update.effective_chat.id}")
-    print(f"   ID пользователя: {update.effective_user.id}")
+    
+    # ========== ПРОВЕРКА НА АНОНИМНОГО АДМИНИСТРАТОРА ==========
+    if update.effective_user and update.effective_user.id == ANONYMOUS_ADMIN_ID:
+        print("   ⚠️ Сообщение от анонимного администратора - игнорируем")
+        # НЕ сохраняем в БД, НЕ обновляем статистику
+        return
     
     # ========== НОВЫЕ УЧАСТНИКИ ==========
     if update.message.new_chat_members:
@@ -86,10 +91,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     topic_name = "Общий"
     if hasattr(update.message, 'message_thread_id') and update.message.message_thread_id:
         topic_id = str(update.message.message_thread_id)
-        print(f"   topic_id из сообщения: {topic_id}")
         if hasattr(update.message, 'forum_topic_created') and update.message.forum_topic_created:
             topic_name = update.message.forum_topic_created.name
-            print(f"   topic_name: {topic_name}")
+            print(f"   🆕 Создана новая тема: {topic_name}")
     
     # Тип сообщения
     has_photo = bool(update.message.photo)
@@ -104,31 +108,25 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     has_text = bool(update.message.text or update.message.caption)
     
     print(f"📊 has_media={has_media}, has_text={has_text}")
-    print(f"   Детали: photo={has_photo}, video={has_video}, doc={has_document}, sticker={has_sticker}")
     print(f"   Тема ID: {topic_id}, название: {topic_name}")
     
     # Альбомы
     is_first = True
     if update.message.media_group_id:
         is_first = is_first_in_album(update.message.media_group_id)
-        print(f"🖼️ Альбом: media_group_id={update.message.media_group_id}, первое={is_first}")
+        print(f"🖼️ Альбом: {'первое' if is_first else 'не первое'}")
     
     # Периодическая очистка
     if random.randint(1, 100) == 1:
         cleanup_old_groups()
-        print("   🧹 Очистка старых групп")
     
     # ========== ПРОВЕРКА АВТО-ВАРН ТЕМЫ ==========
-    print(f"   🔍 Проверка авто-варнов для темы {topic_id}...")
-    
-    # Получаем список всех авто-варн тем
     auto_topics = get_auto_warn_topics()
     print(f"   Все авто-варн темы в БД: {auto_topics}")
     
     is_auto_topic = is_auto_warn_enabled(topic_id)
     print(f"   Тема {topic_id} в списке авто-варнов? {is_auto_topic}")
     
-    # Проверка белого списка
     is_white = is_whitelisted(user_id)
     print(f"   Пользователь {user_id} в белом списке? {is_white}")
     
