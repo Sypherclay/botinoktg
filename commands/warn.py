@@ -204,7 +204,7 @@ async def cmd_my_warnings(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_remove_warn(update, context):
-    """!снять выговор - снять последний выговор (поддерживает @user и reply)"""
+    """!снять выговор - снять последний выговор (поддерживает @user, ID и reply)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !снять выговор")
     
     try:
@@ -221,11 +221,15 @@ async def cmd_remove_warn(update, context):
         message_text = update.message.text
         parts = message_text.split()
         
-        # Сохраняем аргументы для resolve_user
+        # Сохраняем аргументы для resolve_user (если есть)
         if len(parts) > 1:
+            # Передаём ВСЕ аргументы, начиная со второго слова
             context.args = parts[1:]
+            print(f"   аргументы для resolve_user: {context.args}")
+        else:
+            context.args = []
         
-        # Ищем пользователя
+        # Ищем пользователя (приоритет: reply > аргументы)
         user = await resolve_user(update, context, required=True, allow_self=False)
         if not user:
             return
@@ -264,6 +268,6 @@ def register(app):
     print("📝 Регистрация команд warn.py...")
     app.add_handler(MessageHandler(filters.Regex(r'^!выговор\b'), cmd_warn))
     app.add_handler(MessageHandler(filters.Regex(r'^!лист\b'), cmd_warn_list))
-    app.add_handler(MessageHandler(filters.Regex(r'^!мои выговоры\b'), cmd_my_warnings))  # Только для себя
+    app.add_handler(MessageHandler(filters.Regex(r'^!мои выговоры\b'), cmd_my_warnings))
     app.add_handler(MessageHandler(filters.Regex(r'^!снять выговор\b'), cmd_remove_warn))
     print("✅ warn.py зарегистрирован")
