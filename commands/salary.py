@@ -324,43 +324,86 @@ async def cmd_minus(update, context):
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
 async def cmd_plus_reply(update, context):
-    """Команда '+' - +1 к счётчику (только ответом)"""
-    print("\n🔥 ВЫПОЛНЕНИЕ +")
+    """Команда +ЧИСЛО - добавить указанное количество к счётчику зарплаты (только ответом)"""
+    print("\n🔥 ВЫПОЛНЕНИЕ +ЧИСЛО")
     
     try:
         user_id = update.effective_user.id
         print(f"   admin_id: {user_id}")
         
+        # Проверка прав (админ или куратор)
         if not (is_admin(user_id) or get_user_rank(user_id) == 'curator'):
             await update.message.reply_text("❌ Только админы и кураторы")
             return
         
+        # Проверяем, что команда использована с ответом на сообщение
         if not update.message.reply_to_message:
-            await update.message.reply_text("❌ Только ответом")
+            await update.message.reply_text("❌ Эта команда работает только как ответ на сообщение")
             return
         
+        # Получаем текст сообщения (например "+5" или "+24")
+        message_text = update.message.text.strip()
+        
+        # Убираем знак + и получаем число
+        if message_text.startswith('+'):
+            number_str = message_text[1:].strip()
+        else:
+            number_str = message_text
+        
+        # Пытаемся преобразовать в число
+        try:
+            amount = int(number_str)
+            if amount <= 0:
+                await update.message.reply_text("❌ Число должно быть положительным")
+                return
+            if amount > 1000:
+                await update.message.reply_text("❌ Слишком большое число (макс. 1000)")
+                return
+        except ValueError:
+            # Если не число, используем значение по умолчанию 1
+            amount = 1
+            print(f"   Не число, используем 1")
+        
+        print(f"   количество: {amount}")
+        
+        # Получаем целевого пользователя (на чьё сообщение ответили)
         target = update.message.reply_to_message.from_user
-        print(f"   target: {target.id}")
         
+        # Проверка на самого себя
         if target.id == user_id:
-            await update.message.reply_text("❌ Нельзя себе")
+            await update.message.reply_text("❌ Нельзя начислять бонус самому себе")
             return
         
+        # Проверка на бота
         if target.is_bot:
-            await update.message.reply_text("❌ Нельзя боту")
+            await update.message.reply_text("❌ Нельзя начислять бонус боту")
             return
         
-        new = add_to_salary_counter(target.id, 1)
-        balance = get_user_balance(target.id)
-        clickable = get_clickable_name(target.id, target.first_name, target.username)
+        # Добавляем указанное количество к счётчику зарплат
+        new_count = add_to_salary_counter(target.id, amount)
         
+        # Получаем текущий баланс
+        balance = get_user_balance(target.id)
+        
+        # Кликабельное имя цели
+        clickable = get_clickable_name(
+            target.id,
+            target.first_name or "",
+            target.username or ""
+        )
+        
+        # Отправляем подтверждение
         await update.message.reply_text(
-            f"✅ Счётчик для {clickable} +1\n📊 Текущий: {new}\n💰 Баланс: {balance} HC",
+            f"✅ Счётчик зарплаты для {clickable} увеличен на +{amount}\n"
+            f"📊 Текущий счётчик: {new_count}\n"
+            f"💰 Баланс: {balance} HC",
             parse_mode=ParseMode.HTML
         )
         
+        print(f"✅ Счётчик увеличен на {amount}, теперь: {new_count}")
+        
     except Exception as e:
-        print(f"❌ Ошибка: {e}")
+        print(f"❌ Ошибка в cmd_plus_reply: {e}")
         traceback.print_exc()
         await update.message.reply_text(f"❌ Ошибка: {str(e)[:100]}")
 
