@@ -1,5 +1,5 @@
 """
-КОМАНДЫ ВЫГОВОРОВ - ИСПРАВЛЕННАЯ ВЕРСИЯ
+КОМАНДЫ ВЫГОВОРОВ - СТАБИЛЬНАЯ ВЕРСИЯ
 !выговор, !лист, !снять выговор, !мои выговоры
 """
 from telegram.ext import MessageHandler, filters
@@ -42,6 +42,8 @@ async def cmd_warn(update, context):
         # Сохраняем аргументы для resolve_user
         if len(parts) > 1:
             context.args = [parts[1]]
+        else:
+            context.args = []
         
         # Ищем пользователя (приоритет: reply > аргументы)
         user = await resolve_user(update, context, required=True, allow_self=False)
@@ -58,8 +60,8 @@ async def cmd_warn(update, context):
         # Если есть причина в третьем аргументе
         if len(parts) > 2:
             reason = parts[2]
-        # Если есть причина и это не аргумент для resolve_user
-        elif len(parts) > 1 and update.message.reply_to_message and not parts[1].startswith(('@', '!')) and not parts[1].isdigit():
+        # Если есть причина и это ответ на сообщение
+        elif len(parts) > 1 and update.message.reply_to_message:
             reason = parts[1]
         
         print(f"   reason: {reason}")
@@ -221,11 +223,14 @@ async def cmd_remove_warn(update, context):
         message_text = update.message.text
         parts = message_text.split()
         
-        # Сохраняем аргументы для resolve_user (если есть)
+        # Сохраняем аргументы для resolve_user (все, кроме первого слова)
         if len(parts) > 1:
-            # Передаём ВСЕ аргументы, начиная со второго слова
-            context.args = parts[1:]
-            print(f"   аргументы для resolve_user: {context.args}")
+            # Проверяем, что второй аргумент не равен "выговор"
+            if parts[1].lower() != 'выговор':
+                context.args = [parts[1]]
+                print(f"   аргумент для resolve_user: {context.args}")
+            else:
+                context.args = []
         else:
             context.args = []
         

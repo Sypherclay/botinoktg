@@ -1,7 +1,7 @@
 """
-РУЧНЫЕ ВАРНЫ - ПОЛНАЯ ВЕРСИЯ
+РУЧНЫЕ ВАРНЫ - СТАБИЛЬНАЯ ВЕРСИЯ
 !варн - только для Куратор+ (выдать варн)
-!снять варн - только для Куратор+ (снять последний варн) - ИСПРАВЛЕНО!
+!снять варн - только для Куратор+ (снять последний варн)
 !варн лист - только для Руководитель+ (список всех)
 """
 from telegram.ext import MessageHandler, filters
@@ -16,7 +16,7 @@ from user_resolver import resolve_user
 from constants import RANKS, ANONYMOUS_ADMIN_ID
 from logger import log_command
 
-print("✅ warn_manual.py загружен (полная версия с рангами)!")
+print("✅ warn_manual.py загружен (стабильная версия)!")
 
 # ========== ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ДЛЯ ПРОВЕРКИ РАНГА ==========
 def has_rank(user_id, required_rank):
@@ -46,7 +46,7 @@ def has_rank(user_id, required_rank):
     return user_level >= required_level
 
 async def cmd_add_warn(update, context):
-    """!варн [причина] - выдать ручной варн (только для Куратор+)"""
+    """!варн [причина] - выдать ручной варн (поддерживает @user, reply и причину)"""
     print("\n🔥 ВЫПОЛНЕНИЕ !варн")
     
     try:
@@ -71,7 +71,7 @@ async def cmd_add_warn(update, context):
         message_text = update.message.text or ""
         lines = message_text.strip().split('\n', 1)
         first_line = lines[0].strip()
-        parts = first_line.split(maxsplit=1)
+        parts = first_line.split(maxsplit=2)
         
         # Определяем причину
         reason = "Без причины"
@@ -79,18 +79,25 @@ async def cmd_add_warn(update, context):
         # Если есть вторая строка - это причина (приоритет)
         if len(lines) > 1:
             reason = lines[1].strip()
-        # Если нет второй строки, но есть аргументы в первой строке
+        # Если есть аргументы в первой строке
         elif len(parts) > 1:
-            reason = parts[1].strip()
+            # Проверяем, похож ли первый аргумент на пользователя
+            first_arg = parts[1]
+            if first_arg.startswith(('@')) or first_arg.isdigit():
+                # Это похоже на пользователя, оставляем его для resolve_user
+                context.args = [first_arg]
+                # Причина будет из следующего аргумента или по умолчанию
+                if len(parts) > 2:
+                    reason = parts[2]
+            else:
+                # Это часть причины
+                context.args = []
+                reason = first_arg + (' ' + parts[2] if len(parts) > 2 else '')
+        else:
+            context.args = []
         
         print(f"   причина: {reason}")
-        
-        # Сохраняем аргументы для resolve_user (если есть)
-        if len(parts) > 1 and not parts[1].startswith(('@', '!')) and not parts[1].isdigit():
-            # Если первый аргумент не похож на пользователя - это часть причины
-            context.args = []
-        else:
-            context.args = parts[1:] if len(parts) > 1 else []
+        print(f"   аргументы для поиска: {context.args}")
         
         # Ищем пользователя (приоритет: reply > аргументы)
         user = await resolve_user(update, context, required=True, allow_self=False)
@@ -171,11 +178,14 @@ async def cmd_remove_warn(update, context):
         message_text = update.message.text
         parts = message_text.split()
         
-        # Сохраняем аргументы для resolve_user (если есть)
+        # Сохраняем аргументы для resolve_user (все, кроме первого слова)
         if len(parts) > 1:
-            # Передаём ВСЕ аргументы, начиная со второго слова
-            context.args = parts[1:]
-            print(f"   аргументы для resolve_user: {context.args}")
+            # Проверяем, что второй аргумент не равен "варн"
+            if parts[1].lower() != 'варн':
+                context.args = [parts[1]]
+                print(f"   аргумент для resolve_user: {context.args}")
+            else:
+                context.args = []
         else:
             context.args = []
         
